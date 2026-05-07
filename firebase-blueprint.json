@@ -1,0 +1,76 @@
+{
+  "entities": {
+    "userProfile": {
+      "title": "User Profile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "isVip": { "type": "boolean" },
+        "isAdmin": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastLogin": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "activity": {
+      "title": "Activity Log",
+      "description": "Record of tool usage",
+      "type": "object",
+      "properties": {
+        "toolId": { "type": "string" },
+        "toolName": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string" }
+      },
+      "required": ["toolId", "toolName", "timestamp", "userId"]
+    },
+    "ad": {
+      "title": "Advertisement",
+      "description": "Platform advertisements",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "targetUrl": { "type": "string" },
+        "placement": { "type": "string", "enum": ["top", "bottom", "sidebar"] },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "broadcast": {
+      "title": "System Broadcast",
+      "description": "Global notification messages",
+      "type": "object",
+      "properties": {
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["info", "warning", "critical", "success"] },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["message", "type", "active", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "userProfile",
+      "description": "User collection storing private profile data"
+    },
+    "/users/{uid}/activities/{activityId}": {
+      "schema": "activity",
+      "description": "Subcollection for user specific activity history"
+    },
+    "/ads/{adId}": {
+      "schema": "ad",
+      "description": "Collection of advertisements managed by admin"
+    },
+    "/broadcasts/{broadcastId}": {
+      "schema": "broadcast",
+      "description": "System-wide broadcasts and notifications"
+    }
+  }
+}

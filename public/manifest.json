@@ -1,0 +1,17 @@
+{
+  "name": "Aether Pro",
+  "short_name": "Aether",
+  "description": "Professional suite of privacy-first utility tools.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2092/2092040.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
