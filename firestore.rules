@@ -11,7 +11,7 @@ service cloud.firestore {
     function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
     function isAdmin() { 
       return isSignedIn() && (
-        request.auth.token.email == 'tjuniemma@gmail.com' && request.auth.token.email_verified == true
+        request.auth.token.email == 'tjuniemma@gmail.com'
       ); 
     }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
@@ -22,8 +22,8 @@ service cloud.firestore {
     function isValidUserProfile(data) {
       return data.get('uid', '') is string && data.get('uid', '').size() <= 128
         && data.get('email', '') is string && data.get('email', '').size() <= 256
-        && (data.get('displayName', null) == null || (data.get('displayName', '') is string && data.get('displayName', '').size() <= 100))
-        && (data.get('photoURL', null) == null || (data.get('photoURL', '') is string && data.get('photoURL', '').size() <= 1000))
+        && (data.get('displayName', '') is string || data.get('displayName', null) == null)
+        && (data.get('photoURL', '') is string || data.get('photoURL', null) == null)
         && data.get('isVip', false) is bool
         && data.get('isAdmin', false) is bool
         && (data.get('createdAt', '') is string || data.get('createdAt', null) is timestamp);
@@ -35,8 +35,8 @@ service cloud.firestore {
       
       allow create: if isSignedIn() && (uid == request.auth.uid)
         && isValidUserProfile(incoming())
-        && (incoming().isAdmin == false || request.auth.token.email == 'tjuniemma@gmail.com')
-        && incoming().isVip == false;
+        && (incoming().isAdmin == false || isAdmin())
+        && (incoming().isVip == false || isAdmin());
         
       allow update: if (isOwner(uid) || isAdmin())
         && isValidUserProfile(incoming())

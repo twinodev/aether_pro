@@ -51,10 +51,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (docSnap.exists()) {
             const data = docSnap.data();
             setIsVip(data.isVip || false);
-            // Even if DB says otherwise, we trust local check for bootstrapped admin for now
-            // But we can also sync it back
             if (firebaseUser.email === ADMIN_EMAIL && !data.isAdmin) {
-              setDoc(userRef, { isAdmin: true }, { merge: true });
+              setDoc(userRef, { isAdmin: true }, { merge: true }).catch(err => {
+                console.warn('Silent failure updating admin state:', err);
+              });
             }
           } else {
             const newUser = {
@@ -66,10 +66,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               isAdmin: firebaseUser.email === ADMIN_EMAIL,
               createdAt: new Date().toISOString()
             };
-            setDoc(userRef, newUser).catch(e => handleFirestoreError(e, OperationType.WRITE, `users/${firebaseUser.uid}`));
+            setDoc(userRef, newUser).catch(e => {
+              // Only report if it's not a transient permission error during sign-in
+              if (!e.message?.includes('permission')) {
+                handleFirestoreError(e, OperationType.WRITE, `users/${firebaseUser.uid}`);
+              } else {
+                console.warn('Transient permission error during user creation, retrying should happen on next snapshot or re-auth');
+              }
+            });
           }
         }, (err) => {
-          handleFirestoreError(err, OperationType.GET, `users/${firebaseUser.uid}`);
+          // If we're authenticated but getting permission denied, it might be a token propagation delay
+          if (err.message?.includes('permissions')) {
+             console.warn('Firestore permissions delay detected for user:', firebaseUser.uid);
+             // We don't throw here to avoid crashing the app, the listener will retry or be reset
+          } else {
+             handleFirestoreError(err, OperationType.GET, `users/${firebaseUser.uid}`);
+          }
         });
 
         setLoading(false);

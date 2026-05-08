@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, LayoutGrid, Settings, HelpCircle, Menu, X, QrCode, Barcode, Camera, Sparkles, Repeat, Shield, Users, FileText, Mic, LogOut, FileImage, Globe, Tickets } from 'lucide-react';
+import { ChevronLeft, LayoutGrid, Settings, HelpCircle, Menu, X, QrCode, Barcode, Camera, Sparkles, Repeat, Shield, Users, FileText, Mic, LogOut, FileImage, Globe, Tickets, Home as HomeIcon, Search as SearchIcon } from 'lucide-react';
 import Home from './components/Home.tsx';
 import QRBuilder from './components/tools/QRBuilder.tsx';
 import BarcodeBuilder from './components/tools/BarcodeBuilder.tsx';
@@ -17,6 +17,7 @@ import OcrTool from './components/tools/OcrTool.tsx';
 import PdfMaster from './components/tools/PdfMaster.tsx';
 import PrivacyGuard from './components/tools/PrivacyGuard.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
+import SettingsView from './components/SettingsView.tsx';
 
 import { useAuth } from './contexts/AuthContext.tsx';
 import LoginOverlay from './components/ui/LoginOverlay.tsx';
@@ -27,7 +28,7 @@ import { User as UserIcon } from 'lucide-react';
 
 const PREMIUM_VIEWS: string[] = ['phone-sorter', 'file-converter', 'image-compressor', 'ip-intelligence', 'ticketing', 'pdf-master'];
 
-type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'doc-scanner' | 'file-converter' | 'image-compressor' | 'ip-intelligence' | 'ticketing' | 'ocr-tool' | 'pdf-master' | 'privacy-guard' | 'admin';
+type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'doc-scanner' | 'file-converter' | 'image-compressor' | 'ip-intelligence' | 'ticketing' | 'ocr-tool' | 'pdf-master' | 'privacy-guard' | 'settings' | 'admin';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -150,6 +151,8 @@ export default function App() {
               return <PdfMaster />;
             case 'privacy-guard':
               return <PrivacyGuard />;
+            case 'settings':
+              return <SettingsView />;
             case 'admin':
               return <AdminDashboard />;
             default:
@@ -186,15 +189,15 @@ export default function App() {
   });
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#fafafa]">
+    <div className="min-h-screen flex flex-col md:flex-row bg-[#fafafa] dark:bg-neutral-950">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-20 lg:w-72 bg-white border-r border-neutral-200 h-screen sticky top-0 z-50">
+      <aside className="hidden md:flex flex-col w-20 lg:w-72 bg-white dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 h-screen sticky top-0 z-50">
         <div className="p-8 flex items-center justify-center lg:justify-start gap-4">
           <div className="w-12 h-12 flex items-center justify-center shrink-0 transform hover:scale-105 transition-transform cursor-pointer" onClick={() => navigateTo('home')}>
              <img src="/logo.svg" alt="Logo" className="w-full h-full" />
           </div>
           <div className="hidden lg:flex flex-col">
-            <span className="font-black tracking-tighter text-2xl uppercase leading-none">AETHER</span>
+            <span className="font-black tracking-tighter text-2xl uppercase leading-none dark:text-white">AETHER</span>
             <span className="text-[10px] font-black text-rose-600 uppercase tracking-[0.2em] mt-1">Experimental</span>
           </div>
         </div>
@@ -203,14 +206,14 @@ export default function App() {
         <div className="px-6 mb-4 hidden lg:block">
            <div className="relative group">
               <div className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-neutral-900 transition-colors">
-                 <LayoutGrid size={14} />
+                 <SearchIcon size={14} />
               </div>
               <input 
                 type="text"
                 placeholder="Search tools..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-11 bg-neutral-50 border border-neutral-100 rounded-xl pl-10 pr-4 text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:ring-4 focus:ring-neutral-900/5 focus:border-neutral-200 transition-all"
+                className="w-full h-11 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-800 rounded-xl pl-10 pr-4 text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:ring-4 focus:ring-neutral-900/5 dark:focus:ring-white/5 focus:border-neutral-200 dark:focus:border-neutral-700 transition-all text-neutral-900 dark:text-white"
               />
            </div>
         </div>
@@ -222,8 +225,8 @@ export default function App() {
               onClick={() => navigateTo(item.id)}
               className={`w-full flex items-center gap-4 px-4 h-12 rounded-xl transition-all relative group shrink-0 ${
                 currentView === item.id
-                  ? 'bg-neutral-900 text-white shadow-xl shadow-neutral-900/10'
-                  : 'text-neutral-500 hover:bg-neutral-100/50 hover:text-neutral-900'
+                  ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-xl shadow-neutral-900/10 dark:shadow-white/5'
+                  : 'text-neutral-500 hover:bg-neutral-100/50 hover:text-neutral-900 dark:hover:bg-neutral-800/50 dark:hover:text-white'
               }`}
             >
               <item.icon size={18} className={`shrink-0 transition-transform ${currentView === item.id ? 'scale-110' : 'group-hover:scale-110'}`} />
@@ -254,13 +257,19 @@ export default function App() {
               <span className="hidden lg:block text-xs font-black uppercase tracking-widest">Logout Session</span>
             </button>
           )}
-          <button className="w-full flex items-center justify-center lg:justify-start gap-4 px-4 h-12 rounded-2xl text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 transition-all">
+          <button 
+            onClick={() => navigateTo('settings')}
+            className={`w-full flex items-center justify-center lg:justify-start gap-4 px-4 h-12 rounded-2xl transition-all ${
+              currentView === 'settings' 
+              ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900' 
+              : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white'
+            }`}
+          >
             <Settings size={20} />
             <span className="hidden lg:block text-xs font-bold uppercase tracking-widest">Settings</span>
           </button>
         </div>
-
-        <div className="mt-auto px-4 pb-6 hidden lg:block overflow-hidden max-h-[25vh] shrink-0 border-t border-neutral-50 pt-4">
+        <div className="mt-auto px-4 pb-6 hidden lg:block overflow-hidden max-h-[25vh] shrink-0 border-t border-neutral-50 dark:border-neutral-800 pt-4">
            <AdMobAd adSlot="sidebar-bottom" format="vertical" className="h-40" />
         </div>
       </aside>
@@ -269,52 +278,52 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0">
         <BroadcastBanner />
         {/* Mobile Nav / Top Header */}
-        <header className="sticky top-0 z-40 glass border-b border-neutral-200/50 px-4 md:px-8 h-16 flex items-center justify-between">
+        <header className="sticky top-0 z-40 glass border-b border-neutral-200/50 px-4 md:px-8 h-14 md:h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => navigateTo('home')}
-              className={`p-2 hover:bg-neutral-100 rounded-full transition-colors group md:hidden ${currentView === 'home' ? 'hidden' : ''}`}
+              className={`p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full transition-colors group md:hidden ${currentView === 'home' ? 'hidden' : ''}`}
             >
-              <ChevronLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
+              <ChevronLeft size={20} className="group-hover:-translate-x-1 transition-transform dark:text-white" />
             </button>
             <div className="flex flex-col">
-              <h1 className="text-sm font-black uppercase tracking-widest text-neutral-900">
+              <h1 className="text-xs md:text-sm font-black uppercase tracking-widest text-neutral-900 dark:text-white truncate max-w-[120px] md:max-w-none">
                 {navItems.find(i => i.id === currentView)?.label || 'Aether Pro'}
               </h1>
               {currentView !== 'home' && (
-                <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-tighter">Tools / {currentView.split('-').join(' ')}</span>
+                <span className="text-[8px] md:text-[10px] text-neutral-400 font-bold uppercase tracking-tighter">Tools / {currentView.split('-').join(' ')}</span>
               )}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Mobile Search - Visible only on mobile header */}
-            <div className="flex md:hidden items-center mr-2">
+            {/* Desktop Search Header */}
+            <div className="hidden lg:flex items-center mr-2">
               <div className="relative">
                 <input 
                   type="text"
-                  placeholder="Search..."
+                  placeholder="Universal Search..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-24 sm:w-40 h-9 bg-neutral-50 border border-neutral-100 rounded-lg pl-8 pr-2 text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:w-40 sm:focus:w-56 transition-all"
+                  className="w-40 h-9 bg-neutral-50 dark:bg-neutral-800 border border-neutral-100 dark:border-neutral-800 rounded-lg pl-8 pr-2 text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:w-56 transition-all text-neutral-900 dark:text-white"
                 />
-                <LayoutGrid size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                <SearchIcon size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
               </div>
             </div>
 
-            {user ? (
-               <div className="flex items-center gap-3">
-                  <div className="flex flex-col items-end hidden lg:flex">
-                    <div className="flex items-center gap-1">
-                      {isVip && <Sparkles size={10} className="text-rose-600" />}
-                      <span className="text-[10px] font-black text-neutral-900 uppercase tracking-widest leading-none">{user.displayName?.split(' ')[0]}</span>
+              {user ? (
+                 <div className="flex items-center gap-3">
+                    <div className="flex flex-col items-end hidden lg:flex">
+                      <div className="flex items-center gap-1">
+                        {isVip && <Sparkles size={10} className="text-rose-600" />}
+                        <span className="text-[10px] font-black text-neutral-900 dark:text-white uppercase tracking-widest leading-none">{user.displayName?.split(' ')[0]}</span>
+                      </div>
+                      <span className="text-[8px] font-bold text-neutral-400 dark:text-neutral-500 uppercase tracking-tighter">{isVip ? 'Pro Elite Member' : 'Standard Tier'}</span>
                     </div>
-                    <span className="text-[8px] font-bold text-neutral-400 uppercase tracking-tighter">{isVip ? 'Pro Elite Member' : 'Standard Tier'}</span>
-                  </div>
-                  <button 
-                    onClick={() => setShowLogoutConfirm(true)}
-                    className="w-10 h-10 border border-neutral-100 rounded-2xl flex items-center justify-center overflow-hidden hover:border-neutral-300 transition-colors"
-                  >
+                    <button 
+                      onClick={() => setShowLogoutConfirm(true)}
+                      className="w-10 h-10 border border-neutral-100 dark:border-neutral-800 rounded-2xl flex items-center justify-center overflow-hidden hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors"
+                    >
                     {user.photoURL ? (
                       <img src={user.photoURL} alt="User" className="w-full h-full object-cover" />
                     ) : (
@@ -330,12 +339,12 @@ export default function App() {
                 <span className="text-[10px] font-black uppercase tracking-widest">Connect</span>
               </button>
             )}
-            <button className="p-2 hover:bg-neutral-100 rounded-full transition-colors text-neutral-400 hover:text-neutral-900">
+            <button className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full transition-colors text-neutral-400 hover:text-neutral-900 dark:hover:text-white">
               <HelpCircle size={18} />
             </button>
             <button 
               onClick={() => setIsMenuOpen(true)}
-              className="md:hidden p-2 hover:bg-neutral-100 rounded-full transition-colors"
+              className="md:hidden p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full transition-colors dark:text-white"
             >
               <Menu size={20} />
             </button>
@@ -343,7 +352,7 @@ export default function App() {
         </header>
 
         {/* Main Content Scroll Area */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto px-4 py-8 md:px-16 md:py-20 flex justify-center">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto px-4 py-8 md:px-16 md:py-20 pb-32 md:pb-20 flex justify-center">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentView}
@@ -356,7 +365,7 @@ export default function App() {
               {renderView()}
               
               {!isAdmin && currentView !== 'home' && (
-                <div className="mt-12 md:mt-20 border-t border-neutral-100 pt-8 md:pt-12">
+                <div className="mt-12 md:mt-20 border-t border-neutral-100 dark:border-neutral-800 pt-8 md:pt-12">
                    <div className="flex flex-col items-center gap-3">
                       <div className="flex items-center gap-2 opacity-30">
                         <div className="w-1 h-1 bg-neutral-400 rounded-full" />
@@ -370,6 +379,35 @@ export default function App() {
             </motion.div>
           </AnimatePresence>
         </main>
+
+        {/* Mobile App Bottom Dock */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 h-20 bg-white/80 dark:bg-neutral-950/80 backdrop-blur-2xl border-t border-neutral-200 dark:border-neutral-900 flex items-center justify-around px-8 z-50 pb-safe">
+           <button 
+             onClick={() => navigateTo('home')}
+             className={`flex flex-col items-center gap-1.5 transition-all ${currentView === 'home' ? 'text-rose-600' : 'text-neutral-400'}`}
+           >
+             <HomeIcon size={20} strokeWidth={currentView === 'home' ? 3 : 2} />
+             <span className="text-[8px] font-black uppercase tracking-widest">Base</span>
+           </button>
+           
+           <button 
+             onClick={() => setIsMenuOpen(true)}
+             className={`flex flex-col items-center gap-1.5 transition-all ${isMenuOpen ? 'text-rose-600' : 'text-neutral-400'}`}
+           >
+             <div className="w-12 h-12 bg-neutral-900 dark:bg-white rounded-2xl flex items-center justify-center -mt-10 shadow-2xl shadow-black/20 text-white dark:text-neutral-900 transition-transform active:scale-90">
+                <LayoutGrid size={24} />
+             </div>
+             <span className="text-[8px] font-black uppercase tracking-widest mt-1">Tools</span>
+           </button>
+
+           <button 
+             onClick={() => navigateTo('settings')}
+             className={`flex flex-col items-center gap-1.5 transition-all ${currentView === 'settings' ? 'text-rose-600' : 'text-neutral-400'}`}
+           >
+             <Settings size={20} strokeWidth={currentView === 'settings' ? 3 : 2} />
+             <span className="text-[8px] font-black uppercase tracking-widest">Config</span>
+           </button>
+        </nav>
       </div>
 
       {/* Mobile Sidebar Overlay */}
@@ -388,16 +426,16 @@ export default function App() {
                animate={{ x: 0 }}
                exit={{ x: '-100%' }}
                transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-               className="absolute top-0 left-0 bottom-0 w-80 bg-white shadow-2xl p-6 flex flex-col"
+               className="absolute top-0 left-0 bottom-0 w-80 bg-white dark:bg-neutral-900 shadow-2xl p-6 flex flex-col"
             >
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 flex items-center justify-center">
                     <img src="/logo.svg" alt="Logo" className="w-full h-full" />
                   </div>
-                  <span className="font-black tracking-tighter text-xl uppercase">AETHER</span>
+                  <span className="font-black tracking-tighter text-xl uppercase dark:text-white">AETHER</span>
                 </div>
-                <button onClick={() => setIsMenuOpen(false)} className="p-2 hover:bg-neutral-100 rounded-full">
+                <button onClick={() => setIsMenuOpen(false)} className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full dark:text-white">
                   <X size={20} />
                 </button>
               </div>
@@ -409,7 +447,7 @@ export default function App() {
                    placeholder="Search tools..."
                    value={searchQuery}
                    onChange={(e) => setSearchQuery(e.target.value)}
-                   className="w-full h-12 bg-neutral-50 border border-neutral-100 rounded-2xl pl-12 pr-4 text-xs font-bold uppercase tracking-widest focus:outline-none focus:ring-4 focus:ring-neutral-900/5 transition-all"
+                   className="w-full h-12 bg-neutral-50 dark:bg-neutral-800 border border-neutral-100 dark:border-neutral-800 rounded-2xl pl-12 pr-4 text-xs font-bold uppercase tracking-widest focus:outline-none focus:ring-4 focus:ring-neutral-900/5 dark:focus:ring-white/5 transition-all text-neutral-900 dark:text-white"
                  />
                  <LayoutGrid size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" />
               </div>
@@ -421,8 +459,8 @@ export default function App() {
                     onClick={() => navigateTo(item.id)}
                     className={`w-full flex items-center gap-4 px-4 h-14 rounded-2xl transition-all ${
                       currentView === item.id
-                        ? 'bg-neutral-900 text-white shadow-xl shadow-neutral-900/10'
-                        : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900'
+                        ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-xl shadow-neutral-900/10'
+                        : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900 dark:hover:bg-neutral-800/10 dark:hover:text-white'
                     }`}
                   >
                     <item.icon size={20} />
@@ -478,13 +516,13 @@ export default function App() {
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="bg-white w-full max-w-sm rounded-[2.5rem] p-10 relative z-10 shadow-2xl overflow-hidden"
+              className="bg-white dark:bg-neutral-900 w-full max-w-sm rounded-[2.5rem] p-10 relative z-10 shadow-2xl overflow-hidden border border-neutral-100 dark:border-neutral-800"
             >
-              <div className="w-16 h-16 bg-neutral-50 rounded-2xl flex items-center justify-center mb-8 mx-auto">
+              <div className="w-16 h-16 bg-neutral-50 dark:bg-neutral-800 rounded-2xl flex items-center justify-center mb-8 mx-auto">
                 <LogOut className="text-rose-600" size={32} />
               </div>
-              <h3 className="text-2xl font-black text-center uppercase tracking-tighter mb-4 text-neutral-900">Terminate Session?</h3>
-              <p className="text-neutral-500 text-center font-medium text-sm mb-10 leading-relaxed">
+              <h3 className="text-2xl font-black text-center uppercase tracking-tighter mb-4 text-neutral-900 dark:text-white">Terminate Session?</h3>
+              <p className="text-neutral-500 dark:text-neutral-400 text-center font-medium text-sm mb-10 leading-relaxed">
                 You are about to disconnect your agent profile. Unsaved changes to regional tools may be reset.
               </p>
               <div className="flex flex-col gap-3">

@@ -24,7 +24,7 @@ const ToolCard = ({ id, title, description, icon, onClick, color = 'bg-neutral-9
     whileHover={{ y: -6, scale: 1.01 }}
     whileTap={{ scale: 0.99 }}
     onClick={() => onClick(id)}
-    className="card group relative flex h-full min-h-[220px] w-full flex-col overflow-hidden border-2 border-neutral-100 p-8 text-left transition-all duration-300 hover:border-neutral-300 hover:shadow-2xl hover:shadow-black/5"
+    className="card group relative flex h-full min-h-[220px] w-full flex-col overflow-hidden border-2 border-neutral-100 dark:border-neutral-800 p-8 text-left transition-all duration-300 hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-2xl hover:shadow-black/5 dark:hover:shadow-white/5"
   >
     {/* Background Pattern */}
     <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none">
@@ -36,13 +36,13 @@ const ToolCard = ({ id, title, description, icon, onClick, color = 'bg-neutral-9
     </div>
     
     <div className="mt-8 space-y-3 z-10">
-      <h3 className="font-black text-2xl group-hover:text-neutral-900 transition-colors uppercase tracking-tighter leading-none">{title}</h3>
-      <p className="text-neutral-500 text-sm leading-relaxed font-medium line-clamp-2">{description}</p>
+      <h3 className="font-black text-2xl group-hover:text-neutral-900 dark:group-hover:text-white transition-colors uppercase tracking-tighter leading-none">{title}</h3>
+      <p className="text-neutral-500 dark:text-neutral-400 text-sm leading-relaxed font-medium line-clamp-2">{description}</p>
     </div>
 
     <div className="mt-auto pt-8 flex items-center justify-between z-10">
-      <span className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-300 group-hover:text-neutral-900 transition-colors">Launch Tool</span>
-      <ArrowRight size={20} className="text-neutral-200 group-hover:text-neutral-900 group-hover:translate-x-1 transition-all" />
+      <span className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-300 dark:text-neutral-600 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors">Launch Tool</span>
+      <ArrowRight size={20} className="text-neutral-200 dark:text-neutral-800 group-hover:text-neutral-900 dark:group-hover:text-white group-hover:translate-x-1 transition-all" />
     </div>
   </motion.button>
 );
@@ -180,21 +180,21 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
     <div className="max-w-7xl mx-auto">
       <header className="mb-16 grid grid-cols-1 lg:grid-cols-2 gap-12 items-end">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-neutral-900/5 rounded-full mb-6 text-neutral-500">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-neutral-900/5 dark:bg-white/5 rounded-full mb-6 text-neutral-500 dark:text-neutral-400">
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-neutral-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-neutral-500"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-neutral-400 dark:bg-neutral-600 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-neutral-500 dark:bg-neutral-400"></span>
             </span>
             <span className="text-[10px] font-black uppercase tracking-[0.2em]">{new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} RELEASE</span>
           </div>
-          <h1 className="text-5xl md:text-8xl font-black tracking-tighter mb-6 text-neutral-900 leading-[0.85]">
+          <h1 className="text-5xl md:text-8xl font-black tracking-tighter mb-6 text-neutral-900 dark:text-white leading-[0.85]">
             AETHER <br />
-            <span className="text-[#e2e2e2] dark:text-neutral-200">PRO.</span>
+            <span className="text-[#e2e2e2] dark:text-neutral-800">PRO.</span>
           </h1>
           
           {/* Hero Search */}
           <div className="mt-8 relative max-w-xl group">
-             <div className="absolute left-6 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-neutral-900 transition-colors">
+             <div className="absolute left-6 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-neutral-900 dark:group-focus-within:text-white transition-colors">
                 <Users size={20} />
              </div>
              <input 
@@ -202,11 +202,11 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
                placeholder="Search elite tools..."
                value={searchQuery}
                onChange={(e) => setSearchQuery(e.target.value)}
-               className="w-full h-16 bg-white border-2 border-neutral-100 rounded-3xl pl-16 pr-6 text-sm font-bold uppercase tracking-widest focus:outline-none focus:border-neutral-900 focus:ring-8 focus:ring-neutral-900/5 transition-all shadow-xl shadow-black/5"
+               className="w-full h-16 bg-white dark:bg-neutral-900 border-2 border-neutral-100 dark:border-neutral-800 rounded-3xl pl-16 pr-6 text-sm font-bold uppercase tracking-widest focus:outline-none focus:border-neutral-900 dark:focus:border-white focus:ring-8 focus:ring-neutral-900/5 dark:focus:ring-white/5 transition-all shadow-xl shadow-black/5 dark:shadow-white/5 text-neutral-900 dark:text-white"
              />
           </div>
 
-          <p className="mt-8 max-w-xl text-neutral-400 text-lg md:text-xl font-medium leading-relaxed">
+          <p className="mt-8 max-w-xl text-neutral-400 dark:text-neutral-500 text-lg md:text-xl font-medium leading-relaxed">
             A zero-compromise selection of essential digital tools. 
             Built for professionals who value speed, privacy, and flawless design.
           </p>
@@ -214,15 +214,15 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
 
         <div className="space-y-6">
           {user && recentActivities.length > 0 && (
-            <div className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm flex flex-col gap-6">
+            <div className="bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-[2rem] p-8 shadow-sm flex flex-col gap-6">
               <div className="flex items-center justify-between">
                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-neutral-900 text-white flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-lg bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center">
                       <Clock size={16} />
                     </div>
-                    <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-900">Recent Intelligence</h4>
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-900 dark:text-white">Recent Intelligence</h4>
                  </div>
-                 <span className="text-[8px] font-bold text-neutral-300 uppercase tracking-widest">Live Feed</span>
+                 <span className="text-[8px] font-bold text-neutral-300 dark:text-neutral-600 uppercase tracking-widest">Live Feed</span>
               </div>
               <div className="space-y-4">
                 {recentActivities.map((activity) => (
@@ -232,10 +232,10 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
                     className="w-full flex items-center justify-between group hover:translate-x-1 transition-transform"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="w-1.5 h-1.5 rounded-full bg-neutral-200 group-hover:bg-rose-600 transition-colors" />
-                      <span className="text-xs font-bold text-neutral-500 group-hover:text-neutral-900 uppercase tracking-widest">{activity.toolName}</span>
+                      <div className="w-1.5 h-1.5 rounded-full bg-neutral-200 dark:bg-neutral-800 group-hover:bg-rose-600 transition-colors" />
+                      <span className="text-xs font-bold text-neutral-500 dark:text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-white uppercase tracking-widest">{activity.toolName}</span>
                     </div>
-                    <span className="text-[10px] text-neutral-300 font-medium">
+                    <span className="text-[10px] text-neutral-300 dark:text-neutral-600 font-medium">
                       {activity.timestamp?.toDate() ? new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: 'numeric' }).format(activity.timestamp.toDate()) : 'Recent'}
                     </span>
                   </button>
@@ -305,18 +305,18 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
         )}
       </motion.div>
       
-      <footer className="mt-32 pt-16 border-t border-neutral-100 grid grid-cols-2 lg:grid-cols-4 gap-12 text-neutral-400 mb-12">
+      <footer className="mt-32 pt-16 border-t border-neutral-100 dark:border-neutral-800 grid grid-cols-2 lg:grid-cols-4 gap-12 text-neutral-400 dark:text-neutral-500 mb-12">
         <div className="space-y-4">
             <h4 className="text-[10px] font-black uppercase tracking-[0.3em]">Privacy</h4>
-            <div className="w-12 h-1 px-1 flex bg-neutral-100 rounded-full">
-              <div className="w-full h-full bg-neutral-900 rounded-full" />
+            <div className="w-12 h-1 px-1 flex bg-neutral-100 dark:bg-neutral-800 rounded-full">
+              <div className="w-full h-full bg-neutral-900 dark:bg-white rounded-full" />
             </div>
             <p className="text-xs leading-relaxed font-medium">All processing happens directly on your device. Zero cloud dependency.</p>
         </div>
         <div className="space-y-4">
             <h4 className="text-[10px] font-black uppercase tracking-[0.3em]">Security</h4>
-            <div className="w-12 h-1 px-1 flex bg-neutral-100 rounded-full">
-              <div className="w-1/2 h-full bg-neutral-900 rounded-full" />
+            <div className="w-12 h-1 px-1 flex bg-neutral-100 dark:bg-neutral-800 rounded-full">
+              <div className="w-1/2 h-full bg-neutral-900 dark:bg-white rounded-full" />
             </div>
             <p className="text-xs leading-relaxed font-medium">Built with secure-by-design principles and modern web standards.</p>
         </div>
