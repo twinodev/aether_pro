@@ -13,6 +13,9 @@ import FileConverter from './components/tools/FileConverter.tsx';
 import ImageCompressor from './components/tools/ImageCompressor.tsx';
 import IpIntelligence from './components/tools/IpIntelligence.tsx';
 import TicketingTool from './components/tools/TicketingTool.tsx';
+import OcrTool from './components/tools/OcrTool.tsx';
+import PdfMaster from './components/tools/PdfMaster.tsx';
+import PrivacyGuard from './components/tools/PrivacyGuard.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 
 import { useAuth } from './contexts/AuthContext.tsx';
@@ -22,9 +25,9 @@ import BroadcastBanner from './components/ui/BroadcastBanner.tsx';
 import AdMobAd from './components/ui/AdMobAd.tsx';
 import { User as UserIcon } from 'lucide-react';
 
-const PREMIUM_VIEWS: string[] = ['phone-sorter', 'file-converter', 'image-compressor', 'ip-intelligence', 'ticketing'];
+const PREMIUM_VIEWS: string[] = ['phone-sorter', 'file-converter', 'image-compressor', 'ip-intelligence', 'ticketing', 'pdf-master'];
 
-type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'doc-scanner' | 'file-converter' | 'image-compressor' | 'ip-intelligence' | 'ticketing' | 'admin';
+type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'doc-scanner' | 'file-converter' | 'image-compressor' | 'ip-intelligence' | 'ticketing' | 'ocr-tool' | 'pdf-master' | 'privacy-guard' | 'admin';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -70,13 +73,13 @@ export default function App() {
       <div className="min-h-screen bg-neutral-50 flex flex-col items-center justify-center p-8">
         <motion.div 
           animate={{ 
-            scale: [1, 1.1, 1],
-            opacity: [1, 0.5, 1] 
+            scale: [1, 1.05, 1],
+            opacity: [1, 0.8, 1] 
           }}
-          transition={{ duration: 2, repeat: Infinity }}
-          className="w-16 h-16 bg-neutral-900 rounded-[1.5rem] flex items-center justify-center text-white shadow-2xl shadow-black/10 mb-6"
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          className="w-24 h-24 mb-8"
         >
-          <LayoutGrid size={32} />
+          <img src="/logo.svg" alt="Aether Pro Logo" className="w-full h-full drop-shadow-[0_0_20px_rgba(59,130,246,0.3)]" />
         </motion.div>
         <div className="text-center space-y-2">
           <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-900">Aether Core</h2>
@@ -141,6 +144,12 @@ export default function App() {
               return <IpIntelligence />;
             case 'ticketing':
               return <TicketingTool />;
+            case 'ocr-tool':
+              return <OcrTool />;
+            case 'pdf-master':
+              return <PdfMaster />;
+            case 'privacy-guard':
+              return <PrivacyGuard />;
             case 'admin':
               return <AdminDashboard />;
             default:
@@ -154,6 +163,9 @@ export default function App() {
   const navItems = [
     { id: 'home', label: 'Dashboard', icon: LayoutGrid },
     { id: 'admin', label: 'Intelligence', icon: Shield, adminOnly: true },
+    { id: 'ocr-tool', label: 'OCR Vision', icon: FileText },
+    { id: 'pdf-master', label: 'PDF Master', icon: FileText },
+    { id: 'privacy-guard', label: 'Privacy Guard', icon: Shield },
     { id: 'ticketing', label: 'Ticket Engine', icon: Tickets },
     { id: 'ip-intelligence', label: 'IP Intelligence', icon: Globe },
     { id: 'qr-builder', label: 'QR Builder', icon: QrCode },
@@ -178,8 +190,8 @@ export default function App() {
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-20 lg:w-72 bg-white border-r border-neutral-200 h-screen sticky top-0 z-50">
         <div className="p-8 flex items-center justify-center lg:justify-start gap-4">
-          <div className="w-12 h-12 bg-neutral-900 rounded-[1.25rem] flex items-center justify-center text-white shadow-2xl shadow-neutral-900/20 shrink-0 transform hover:scale-105 transition-transform cursor-pointer" onClick={() => navigateTo('home')}>
-            <LayoutGrid size={24} />
+          <div className="w-12 h-12 flex items-center justify-center shrink-0 transform hover:scale-105 transition-transform cursor-pointer" onClick={() => navigateTo('home')}>
+             <img src="/logo.svg" alt="Logo" className="w-full h-full" />
           </div>
           <div className="hidden lg:flex flex-col">
             <span className="font-black tracking-tighter text-2xl uppercase leading-none">AETHER</span>
@@ -276,6 +288,20 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Mobile Search - Visible only on mobile header */}
+            <div className="flex md:hidden items-center mr-2">
+              <div className="relative">
+                <input 
+                  type="text"
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-24 sm:w-40 h-9 bg-neutral-50 border border-neutral-100 rounded-lg pl-8 pr-2 text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:w-40 sm:focus:w-56 transition-all"
+                />
+                <LayoutGrid size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+              </div>
+            </div>
+
             {user ? (
                <div className="flex items-center gap-3">
                   <div className="flex flex-col items-end hidden lg:flex">
@@ -366,8 +392,8 @@ export default function App() {
             >
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-neutral-900 rounded-2xl flex items-center justify-center text-white">
-                    <LayoutGrid size={20} />
+                  <div className="w-10 h-10 flex items-center justify-center">
+                    <img src="/logo.svg" alt="Logo" className="w-full h-full" />
                   </div>
                   <span className="font-black tracking-tighter text-xl uppercase">AETHER</span>
                 </div>
@@ -376,14 +402,26 @@ export default function App() {
                 </button>
               </div>
 
+              {/* Mobile Search - In Sidebar */}
+              <div className="mb-6 relative">
+                 <input 
+                   type="text"
+                   placeholder="Search tools..."
+                   value={searchQuery}
+                   onChange={(e) => setSearchQuery(e.target.value)}
+                   className="w-full h-12 bg-neutral-50 border border-neutral-100 rounded-2xl pl-12 pr-4 text-xs font-bold uppercase tracking-widest focus:outline-none focus:ring-4 focus:ring-neutral-900/5 transition-all"
+                 />
+                 <LayoutGrid size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" />
+              </div>
+
               <div className="space-y-1 overflow-y-auto flex-1">
-                {navItems.filter(item => !item.adminOnly || isAdmin).map((item) => (
+                {filteredNavItems.map((item) => (
                   <button
                     key={item.id}
                     onClick={() => navigateTo(item.id)}
                     className={`w-full flex items-center gap-4 px-4 h-14 rounded-2xl transition-all ${
                       currentView === item.id
-                        ? 'bg-neutral-900 text-white'
+                        ? 'bg-neutral-900 text-white shadow-xl shadow-neutral-900/10'
                         : 'text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900'
                     }`}
                   >
@@ -391,6 +429,12 @@ export default function App() {
                     <span className="text-xs font-bold uppercase tracking-widest">{item.label}</span>
                   </button>
                 ))}
+                {filteredNavItems.length === 0 && (
+                  <div className="py-12 text-center opacity-40">
+                    <LayoutGrid size={40} className="mx-auto mb-4" />
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em]">No Tools Found</p>
+                  </div>
+                )}
               </div>
 
               {user && (

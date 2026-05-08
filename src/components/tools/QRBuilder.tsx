@@ -1,11 +1,11 @@
 import React, { useState, useRef, ChangeEvent } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Download, Share2, Copy, Check, QrCode, Type, Link as LinkIcon, Mail, Phone, Layout, Image as ImageIcon, X, Sparkles, Lock, Play, Moon, Sun } from 'lucide-react';
+import { Download, Share2, Copy, Check, QrCode, Type, Link as LinkIcon, Mail, Phone, Layout, Image as ImageIcon, X, Sparkles, Lock, Play, Moon, Sun, User, Wifi } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../contexts/AuthContext';
 import AdOverlay from '../ui/AdOverlay';
 
-type QRType = 'text' | 'url' | 'email' | 'phone';
+type QRType = 'text' | 'url' | 'email' | 'phone' | 'vcard' | 'wifi';
 
 export default function QRBuilder() {
   const { isVip } = useAuth();
@@ -14,6 +14,21 @@ export default function QRBuilder() {
   
   const [text, setText] = useState('');
   const [type, setType] = useState<QRType>('url');
+  
+  // Structured inputs for complex types
+  const [vCard, setVCard] = useState({
+    firstName: '',
+    lastName: '',
+    org: '',
+    phone: '',
+    email: '',
+  });
+
+  const [wifi, setWifi] = useState({
+    ssid: '',
+    password: '',
+    encryption: 'WPA', // WPA, WEP, nopass
+  });
   const [fgColor, setFgColor] = useState('#000000');
   const [bgColor, setBgColor] = useState('#ffffff');
   const [logo, setLogo] = useState<string | null>(null);
@@ -65,7 +80,37 @@ export default function QRBuilder() {
     { id: 'text', icon: Type, label: 'Text' },
     { id: 'email', icon: Mail, label: 'Email' },
     { id: 'phone', icon: Phone, label: 'Phone' },
+    { id: 'vcard', icon: User, label: 'vCard' },
+    { id: 'wifi', icon: Wifi, label: 'WiFi' },
   ];
+
+  const getQRValue = () => {
+    if (!text && type !== 'vcard' && type !== 'wifi') return 'https://aether-pro.app';
+    
+    switch (type) {
+      case 'url':
+        return text.startsWith('http') ? text : `https://${text}`;
+      case 'email':
+        return `mailto:${text}`;
+      case 'phone':
+        return `tel:${text}`;
+      case 'vcard':
+        return `BEGIN:VCARD
+VERSION:3.0
+N:${vCard.lastName};${vCard.firstName}
+FN:${vCard.firstName} ${vCard.lastName}
+ORG:${vCard.org}
+TEL;TYPE=CELL:${vCard.phone}
+EMAIL:${vCard.email}
+END:VCARD`;
+      case 'wifi':
+        return `WIFI:S:${wifi.ssid};T:${wifi.encryption};P:${wifi.password};;`;
+      default:
+        return text;
+    }
+  };
+
+  const qrValue = getQRValue();
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${isDarkMode ? 'bg-neutral-950 text-white' : 'bg-white text-neutral-900'}`}>
@@ -93,7 +138,7 @@ export default function QRBuilder() {
           <section className="space-y-6">
             <div className="space-y-3">
               <label className={`text-sm font-semibold uppercase tracking-wider ${isDarkMode ? 'text-neutral-500' : 'text-neutral-400'}`}>Content Type</label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
                 {qrTypes.map((t) => (
                   <button
                     key={t.id}
@@ -104,7 +149,7 @@ export default function QRBuilder() {
                         : (isDarkMode ? 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-neutral-700' : 'bg-white border-neutral-200 text-neutral-600 hover:border-neutral-300')
                     }`}
                   >
-                    <t.icon size={20} />
+                    <t.icon size={18} />
                     <span className="text-[10px] font-bold uppercase">{t.label}</span>
                   </button>
                 ))}
@@ -113,19 +158,98 @@ export default function QRBuilder() {
 
             <div className="space-y-3">
               <label className={`text-sm font-semibold uppercase tracking-wider ${isDarkMode ? 'text-neutral-500' : 'text-neutral-400'}`}>
-                {type === 'url' ? 'Website URL' : type === 'email' ? 'Email Address' : type === 'phone' ? 'Phone Number' : 'Text Content'}
+                {type === 'url' ? 'Website URL' : type === 'email' ? 'Email Address' : type === 'phone' ? 'Phone Number' : type === 'vcard' ? 'Contact Information' : type === 'wifi' ? 'Network Credentials' : 'Text Content'}
               </label>
-              <input
-                type={type === 'email' ? 'email' : type === 'phone' ? 'tel' : 'text'}
-                className={`w-full h-12 px-4 rounded-xl transition-all outline-none border focus:ring-2 ${
-                  isDarkMode 
-                    ? 'bg-neutral-900 border-neutral-800 text-white placeholder-neutral-600 focus:border-indigo-500 focus:ring-indigo-500/20' 
-                    : 'bg-white border-neutral-200 text-neutral-900 placeholder-neutral-400 focus:border-neutral-900 focus:ring-neutral-900/5'
-                }`}
-                placeholder={type === 'url' ? 'https://example.com' : 'Enter content here...'}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-              />
+              
+              {type === 'vcard' ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    className={`w-full h-10 px-4 rounded-xl transition-all outline-none border focus:ring-2 ${
+                      isDarkMode ? 'bg-neutral-900 border-neutral-800 text-white' : 'bg-white border-neutral-200 text-neutral-900'
+                    }`}
+                    placeholder="First Name"
+                    value={vCard.firstName}
+                    onChange={(e) => setVCard({ ...vCard, firstName: e.target.value })}
+                  />
+                  <input
+                    className={`w-full h-10 px-4 rounded-xl transition-all outline-none border focus:ring-2 ${
+                      isDarkMode ? 'bg-neutral-900 border-neutral-800 text-white' : 'bg-white border-neutral-200 text-neutral-900'
+                    }`}
+                    placeholder="Last Name"
+                    value={vCard.lastName}
+                    onChange={(e) => setVCard({ ...vCard, lastName: e.target.value })}
+                  />
+                  <input
+                    className={`w-full h-10 px-4 rounded-xl transition-all outline-none border focus:ring-2 ${
+                      isDarkMode ? 'bg-neutral-900 border-neutral-800 text-white' : 'bg-white border-neutral-200 text-neutral-900'
+                    }`}
+                    placeholder="Organization"
+                    value={vCard.org}
+                    onChange={(e) => setVCard({ ...vCard, org: e.target.value })}
+                  />
+                  <input
+                    className={`w-full h-10 px-4 rounded-xl transition-all outline-none border focus:ring-2 ${
+                      isDarkMode ? 'bg-neutral-900 border-neutral-800 text-white' : 'bg-white border-neutral-200 text-neutral-900'
+                    }`}
+                    placeholder="Phone"
+                    value={vCard.phone}
+                    onChange={(e) => setVCard({ ...vCard, phone: e.target.value })}
+                  />
+                  <input
+                    className={`w-full h-10 px-4 col-span-2 rounded-xl transition-all outline-none border focus:ring-2 ${
+                      isDarkMode ? 'bg-neutral-900 border-neutral-800 text-white' : 'bg-white border-neutral-200 text-neutral-900'
+                    }`}
+                    placeholder="Email"
+                    value={vCard.email}
+                    onChange={(e) => setVCard({ ...vCard, email: e.target.value })}
+                  />
+                </div>
+              ) : type === 'wifi' ? (
+                <div className="space-y-3">
+                  <input
+                    className={`w-full h-10 px-4 rounded-xl transition-all outline-none border focus:ring-2 ${
+                      isDarkMode ? 'bg-neutral-900 border-neutral-800 text-white' : 'bg-white border-neutral-200 text-neutral-900'
+                    }`}
+                    placeholder="Network Name (SSID)"
+                    value={wifi.ssid}
+                    onChange={(e) => setWifi({ ...wifi, ssid: e.target.value })}
+                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="password"
+                      className={`w-full h-10 px-4 rounded-xl transition-all outline-none border focus:ring-2 ${
+                        isDarkMode ? 'bg-neutral-900 border-neutral-800 text-white' : 'bg-white border-neutral-200 text-neutral-900'
+                      }`}
+                      placeholder="Password"
+                      value={wifi.password}
+                      onChange={(e) => setWifi({ ...wifi, password: e.target.value })}
+                    />
+                    <select
+                      className={`w-full h-10 px-4 rounded-xl transition-all outline-none border focus:ring-2 ${
+                        isDarkMode ? 'bg-neutral-900 border-neutral-800 text-white' : 'bg-white border-neutral-200 text-neutral-900'
+                      }`}
+                      value={wifi.encryption}
+                      onChange={(e) => setWifi({ ...wifi, encryption: e.target.value })}
+                    >
+                      <option value="WPA">WPA/WPA2</option>
+                      <option value="WEP">WEP</option>
+                      <option value="nopass">None</option>
+                    </select>
+                  </div>
+                </div>
+              ) : (
+                <input
+                  type={type === 'email' ? 'email' : type === 'phone' ? 'tel' : 'text'}
+                  className={`w-full h-12 px-4 rounded-xl transition-all outline-none border focus:ring-2 ${
+                    isDarkMode 
+                      ? 'bg-neutral-900 border-neutral-800 text-white placeholder-neutral-600 focus:border-indigo-500 focus:ring-indigo-500/20' 
+                      : 'bg-white border-neutral-200 text-neutral-900 placeholder-neutral-400 focus:border-neutral-900 focus:ring-neutral-900/5'
+                  }`}
+                  placeholder={type === 'url' ? 'https://example.com' : 'Enter content here...'}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                />
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -245,7 +369,7 @@ export default function QRBuilder() {
               <div className="bg-white p-6 rounded-2xl shadow-2xl transition-transform group-hover:scale-105 duration-300">
                 <QRCodeCanvas
                   id="qr-code-canvas"
-                  value={text || 'https://google.com'}
+                  value={qrValue}
                   size={200}
                   level="H"
                   fgColor={fgColor}
@@ -285,7 +409,7 @@ export default function QRBuilder() {
             </div>
             
             <p className={`mt-4 text-xs font-mono uppercase tracking-widest text-center ${isDarkMode ? 'text-neutral-600' : 'text-neutral-400'}`}>
-              {text.length > 0 ? `${text.length} characters` : 'waiting for input...'}
+              {qrValue.length > 0 ? `${qrValue.length} characters` : 'waiting for input...'}
             </p>
           </section>
         </div>

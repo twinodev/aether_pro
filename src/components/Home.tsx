@@ -51,6 +51,7 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
   const { user, isVip } = useAuth();
   const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
   const [showInterstitial, setShowInterstitial] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -151,8 +152,29 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
       color: 'bg-indigo-600',
       vip: true,
       featured: true
+    },
+    {
+      id: 'pdf-master',
+      title: 'PDF Master',
+      description: 'Merge, split, and edit PDF metadata seamlessly.',
+      icon: <FileText size={24} />,
+      color: 'bg-red-600',
+      vip: true,
+      featured: true
+    },
+    {
+      id: 'privacy-guard',
+      title: 'Privacy Guard',
+      description: 'Strip EXIF data and anonymize image assets.',
+      icon: <Shield size={24} />,
+      color: 'bg-emerald-600'
     }
   ];
+
+  const filteredTools = tools.filter(tool => 
+    tool.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    tool.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -169,7 +191,22 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
             AETHER <br />
             <span className="text-[#e2e2e2] dark:text-neutral-200">PRO.</span>
           </h1>
-          <p className="max-w-xl text-neutral-400 text-lg md:text-xl font-medium leading-relaxed">
+          
+          {/* Hero Search */}
+          <div className="mt-8 relative max-w-xl group">
+             <div className="absolute left-6 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-neutral-900 transition-colors">
+                <Users size={20} />
+             </div>
+             <input 
+               type="text"
+               placeholder="Search elite tools..."
+               value={searchQuery}
+               onChange={(e) => setSearchQuery(e.target.value)}
+               className="w-full h-16 bg-white border-2 border-neutral-100 rounded-3xl pl-16 pr-6 text-sm font-bold uppercase tracking-widest focus:outline-none focus:border-neutral-900 focus:ring-8 focus:ring-neutral-900/5 transition-all shadow-xl shadow-black/5"
+             />
+          </div>
+
+          <p className="mt-8 max-w-xl text-neutral-400 text-lg md:text-xl font-medium leading-relaxed">
             A zero-compromise selection of essential digital tools. 
             Built for professionals who value speed, privacy, and flawless design.
           </p>
@@ -236,7 +273,7 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
         }}
         className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 grid-flow-row-dense gap-6 lg:gap-8"
       >
-        {tools.map((tool) => (
+        {filteredTools.map((tool) => (
           <div key={tool.id} className={`
              ${tool.id === 'qr-builder' || tool.id === 'doc-scanner' ? 'lg:col-span-2 lg:row-span-1' : ''}
              ${tool.id === 'ip-intelligence' ? 'lg:col-span-2 lg:row-span-2' : ''}
@@ -260,6 +297,12 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
             )}
           </div>
         ))}
+        {filteredTools.length === 0 && (
+          <div className="col-span-full py-20 text-center opacity-30">
+             <Users size={64} className="mx-auto mb-4" />
+             <p className="text-xl font-black uppercase tracking-[0.4em]">No matching tools found</p>
+          </div>
+        )}
       </motion.div>
       
       <footer className="mt-32 pt-16 border-t border-neutral-100 grid grid-cols-2 lg:grid-cols-4 gap-12 text-neutral-400 mb-12">
