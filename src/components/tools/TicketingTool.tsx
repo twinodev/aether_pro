@@ -15,6 +15,8 @@ export default function TicketingTool() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [activeMobileTab, setActiveMobileTab] = useState<'edit' | 'preview'>('edit');
+  const [expandedSection, setExpandedSection] = useState<string | null>('event');
   
   const [eventTitle, setEventTitle] = useState('Kampala Music Festival 2026');
   const [venue, setVenue] = useState('Namboole Stadium');
@@ -335,8 +337,8 @@ export default function TicketingTool() {
       }
     `}} />
 
-    <div className="max-w-6xl mx-auto p-4 md:p-8">
-      <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
+    <div className="max-w-[1600px] mx-auto p-4 md:p-8 lg:p-12">
+      <header className="mb-8 md:mb-12 flex flex-col xl:flex-row xl:items-end justify-between gap-6">
         <div>
            <div className="flex items-center gap-3 mb-2">
               <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-xl shadow-indigo-500/20">
@@ -347,23 +349,39 @@ export default function TicketingTool() {
            <p className="text-neutral-500 font-medium italic">Design, generate, and deploy mission-critical access tokens.</p>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
            <button 
               onClick={() => setShowTemplates(!showTemplates)}
-              className="flex items-center gap-2 px-6 py-3 bg-white border border-neutral-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-indigo-500 hover:text-indigo-600 transition-all shadow-sm"
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-white border border-neutral-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-indigo-500 hover:text-indigo-600 transition-all shadow-sm"
            >
               <FolderHeart size={16} />
-              Design Vault ({templates.length})
+              <span>Design Vault ({templates.length})</span>
            </button>
            <button 
               onClick={handleSaveTemplate}
-              className="flex items-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
            >
               <Save size={16} />
-              Save As Template
+              <span>Save Template</span>
            </button>
         </div>
       </header>
+
+      {/* Mobile Tab Switcher */}
+      <div className="flex md:hidden mb-6 bg-neutral-100 p-1 rounded-2xl">
+         <button 
+            onClick={() => setActiveMobileTab('edit')}
+            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeMobileTab === 'edit' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-400'}`}
+         >
+            Configure
+         </button>
+         <button 
+            onClick={() => setActiveMobileTab('preview')}
+            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeMobileTab === 'preview' ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-400'}`}
+         >
+            Preview
+         </button>
+      </div>
 
       <AnimatePresence>
          {showTemplates && (
@@ -394,365 +412,404 @@ export default function TicketingTool() {
          )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-12">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-12">
         {/* Editor Block */}
-        <div className="xl:col-span-4 space-y-8">
-          <div className="bg-white border border-neutral-100 rounded-[2.5rem] p-8 space-y-8 shadow-sm">
+        <div className={`md:col-span-5 lg:col-span-4 space-y-6 ${activeMobileTab === 'preview' ? 'hidden md:block' : 'block'}`}>
+          <div className="bg-white border border-neutral-100 rounded-[2.5rem] p-6 lg:p-8 space-y-6 lg:space-y-8 shadow-sm">
+             
+             {/* Collapsible Sections for Mobile */}
              <div className="space-y-4">
-                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400">Event Details</label>
-                <div className="space-y-3">
-                   <div className="relative">
-                      <Type className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300" size={16} />
-                      <input 
-                        type="text" 
-                        placeholder="Event Title" 
-                        value={eventTitle}
-                        onChange={e => setEventTitle(e.target.value)}
-                        className="w-full bg-neutral-50 border-none rounded-xl h-12 pl-12 pr-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
-                      />
-                   </div>
-                   <div className="relative">
-                      <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300" size={16} />
-                      <input 
-                        type="text" 
-                        placeholder="Venue" 
-                        value={venue}
-                        onChange={e => setVenue(e.target.value)}
-                        className="w-full bg-neutral-50 border-none rounded-xl h-12 pl-12 pr-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
-                      />
-                   </div>
-                   <div className="grid grid-cols-2 gap-3">
-                      <div className="relative">
-                        <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300" size={16} />
-                        <input 
-                          type="date" 
-                          value={date}
-                          onChange={e => setDate(e.target.value)}
-                          className="w-full bg-neutral-50 border-none rounded-xl h-12 pl-12 pr-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
-                        />
-                      </div>
-                      <input 
-                        type="time" 
-                        value={time}
-                        onChange={e => setTime(e.target.value)}
-                        className="w-full bg-neutral-50 border-none rounded-xl h-12 px-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
-                      />
-                   </div>
-                </div>
-             </div>
-
-             <div className="space-y-4">
-                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400">Security & Tier</label>
-                <div className="grid grid-cols-2 gap-3">
-                   <input 
-                      type="text" 
-                      placeholder="Tier (e.g. VIP)" 
-                      value={ticketType}
-                      onChange={e => setTicketType(e.target.value)}
-                      className="w-full bg-neutral-50 border-none rounded-xl h-12 px-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
-                   />
-                   <div className="relative">
-                      <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300" size={16} />
-                      <input 
-                        type="text" 
-                        placeholder="Price (UGX)" 
-                        value={price}
-                        onChange={e => setPrice(e.target.value)}
-                        className="w-full bg-neutral-50 border-none rounded-xl h-12 pl-12 pr-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
-                      />
-                   </div>
-                </div>
-
-                <div className="pt-2">
+                {/* Event Section */}
+                <div className="border-b border-neutral-50 pb-4">
                    <button 
-                      onClick={() => setBulkMode(!bulkMode)}
-                      className={`w-full h-10 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${bulkMode ? 'bg-indigo-600 text-white' : 'bg-neutral-100 text-neutral-400'}`}
+                      onClick={() => setExpandedSection(expandedSection === 'event' ? null : 'event')}
+                      className="w-full flex items-center justify-between group"
                    >
-                      <ListChecks size={14} />
-                      {bulkMode ? 'Close Bulk Input' : 'Enable Bulk Ticketing'}
-                   </button>
-                </div>
-
-                <AnimatePresence>
-                   {bulkMode ? (
-                      <motion.div 
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="space-y-2 overflow-hidden"
-                      >
-                         <label className="text-[9px] font-bold uppercase text-neutral-400">Customer Names (One per line)</label>
-                         <textarea 
-                           value={bulkNames}
-                           onChange={e => setBulkNames(e.target.value)}
-                           placeholder="John Doe&#10;Jane Smith&#10;Kato Wilson" 
-                           className="w-full bg-neutral-50 border-none rounded-xl p-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all h-32"
-                         />
-                      </motion.div>
-                   ) : (
-                      <div className="relative">
-                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300" size={16} />
-                        <input 
-                          type="text" 
-                          placeholder="Attendant Name" 
-                          value={customerName}
-                          onChange={e => setCustomerName(e.target.value)}
-                          className="w-full bg-neutral-50 border-none rounded-xl h-12 pl-12 pr-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
-                        />
+                      <label className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400 group-hover:text-neutral-900 cursor-pointer">Event Details</label>
+                      <div className={`transition-transform md:hidden ${expandedSection === 'event' ? 'rotate-180' : ''}`}>
+                         <Plus size={14} className="text-neutral-300" />
                       </div>
-                   )}
-                </AnimatePresence>
-             </div>
-
-             <div className="space-y-4 pt-4 border-t border-neutral-50">
-                 <label className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400">Typography & Spacing</label>
-                   <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                         <div className="flex items-center gap-2 mb-1">
-                           <Type size={12} className="text-neutral-400" />
-                           <span className="text-[10px] font-bold uppercase text-neutral-400">Typeface</span>
-                         </div>
-                         <select 
-                           value={fontFamily}
-                           onChange={e => setFontFamily(e.target.value)}
-                           className="w-full h-10 rounded-xl bg-neutral-50 border-none text-[10px] font-bold uppercase"
+                   </button>
+                   
+                   <AnimatePresence initial={false}>
+                      {(expandedSection === 'event' || window.innerWidth >= 768) && (
+                         <motion.div 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="space-y-3 pt-4 overflow-hidden"
                          >
-                            <option value="Inter">Sans Modern</option>
-                            <option value="'JetBrains Mono'">Tech Mono</option>
-                            <option value="'Playfair Display'">Classic Serif</option>
-                            <option value="Outfit">Geometric</option>
-                            <option value="Space Grotesk">Technical</option>
-                         </select>
-                      </div>
-                      <div className="space-y-2">
-                         <div className="flex items-center justify-between mb-1">
-                           <span className="text-[10px] font-bold uppercase text-neutral-400">Scale</span>
-                           <span className="text-[8px] font-mono text-indigo-500">{Math.round(fontSize * 100)}%</span>
-                         </div>
-                         <input 
-                           type="range" min="0.5" max="1.5" step="0.05"
-                           value={fontSize}
-                           onChange={e => setFontSize(parseFloat(e.target.value))}
-                           className="w-full h-2 accent-indigo-500 bg-neutral-100 rounded-lg appearance-none cursor-pointer mt-4"
-                         />
-                      </div>
-                   </div>
-                   <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                         <div className="flex items-center justify-between mb-1">
-                           <span className="text-[10px] font-bold uppercase text-neutral-400">Tracking</span>
-                           <span className="text-[8px] font-mono text-indigo-500">{letterSpacing}px</span>
-                         </div>
-                         <input 
-                           type="range" min="-1" max="5" step="0.5"
-                           value={letterSpacing}
-                           onChange={e => setLetterSpacing(parseFloat(e.target.value))}
-                           className="w-full h-2 accent-indigo-500 bg-neutral-100 rounded-lg appearance-none cursor-pointer mt-4"
-                         />
-                      </div>
-                      <div className="space-y-2">
-                         <div className="flex items-center justify-between mb-1">
-                           <span className="text-[10px] font-bold uppercase text-neutral-400">Leading</span>
-                           <span className="text-[8px] font-mono text-indigo-500">{lineHeight}</span>
-                         </div>
-                         <input 
-                           type="range" min="0.8" max="1.8" step="0.1"
-                           value={lineHeight}
-                           onChange={e => setLineHeight(parseFloat(e.target.value))}
-                           className="w-full h-2 accent-indigo-500 bg-neutral-100 rounded-lg appearance-none cursor-pointer mt-4"
-                         />
-                      </div>
-                   </div>
+                            <div className="relative">
+                               <Type className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300" size={16} />
+                               <input 
+                                 type="text" 
+                                 placeholder="Event Title" 
+                                 value={eventTitle}
+                                 onChange={e => setEventTitle(e.target.value)}
+                                 className="w-full bg-neutral-50 border-none rounded-xl h-12 pl-12 pr-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
+                               />
+                            </div>
+                            <div className="relative">
+                               <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300" size={16} />
+                               <input 
+                                 type="text" 
+                                 placeholder="Venue" 
+                                 value={venue}
+                                 onChange={e => setVenue(e.target.value)}
+                                 className="w-full bg-neutral-50 border-none rounded-xl h-12 pl-12 pr-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
+                               />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                               <div className="relative">
+                                 <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300" size={16} />
+                                 <input 
+                                   type="date" 
+                                   value={date}
+                                   onChange={e => setDate(e.target.value)}
+                                   className="w-full bg-neutral-50 border-none rounded-xl h-12 pl-12 pr-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
+                                 />
+                               </div>
+                               <input 
+                                 type="time" 
+                                 value={time}
+                                 onChange={e => setTime(e.target.value)}
+                                 className="w-full bg-neutral-50 border-none rounded-xl h-12 px-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
+                               />
+                            </div>
+                         </motion.div>
+                      )}
+                   </AnimatePresence>
                 </div>
 
-                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400">Design Config</label>
-                <div className="grid grid-cols-2 gap-4">
-                   <div className="space-y-2">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Palette size={12} className="text-neutral-400" />
-                        <span className="text-[10px] font-bold uppercase text-neutral-400">Primary Color</span>
+                {/* Identity Section */}
+                <div className="border-b border-neutral-50 pb-4">
+                   <button 
+                      onClick={() => setExpandedSection(expandedSection === 'identity' ? null : 'identity')}
+                      className="w-full flex items-center justify-between group"
+                   >
+                      <label className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400 group-hover:text-neutral-900 cursor-pointer">Security & Identity</label>
+                      <div className={`transition-transform md:hidden ${expandedSection === 'identity' ? 'rotate-180' : ''}`}>
+                         <Plus size={14} className="text-neutral-300" />
                       </div>
-                      <input 
-                        type="color" 
-                        value={color}
-                        onChange={e => setColor(e.target.value)}
-                        className="w-full h-10 rounded-xl cursor-pointer bg-neutral-50 border-none"
-                      />
-                   </div>
-                   <div className="space-y-2">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Layout size={12} className="text-neutral-400" />
-                        <span className="text-[10px] font-bold uppercase text-neutral-400">Layout</span>
-                      </div>
-                      <select 
-                        value={layout}
-                        onChange={e => setLayout(e.target.value as any)}
-                        className="w-full h-10 rounded-xl bg-neutral-50 border-none text-[10px] font-bold uppercase"
-                      >
-                         {layouts.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
-                      </select>
-                   </div>
-                </div>
+                   </button>
+                   
+                   <AnimatePresence initial={false}>
+                      {(expandedSection === 'identity' || window.innerWidth >= 768) && (
+                         <motion.div 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="space-y-4 pt-4 overflow-hidden"
+                         >
+                            <div className="grid grid-cols-2 gap-3">
+                               <input 
+                                  type="text" 
+                                  placeholder="Tier (e.g. VIP)" 
+                                  value={ticketType}
+                                  onChange={e => setTicketType(e.target.value)}
+                                  className="w-full bg-neutral-50 border-none rounded-xl h-12 px-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
+                               />
+                               <div className="relative">
+                                  <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300" size={16} />
+                                  <input 
+                                    type="text" 
+                                    placeholder="Price (UGX)" 
+                                    value={price}
+                                    onChange={e => setPrice(e.target.value)}
+                                    className="w-full bg-neutral-50 border-none rounded-xl h-12 pl-12 pr-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
+                                  />
+                               </div>
+                            </div>
 
-                <div className="space-y-2">
-                   <div className="flex items-center gap-2 mb-1">
-                     <Sparkles size={12} className="text-neutral-400" />
-                     <span className="text-[10px] font-bold uppercase text-neutral-400">Orientation</span>
-                   </div>
-                   <div className="grid grid-cols-2 gap-2">
-                      <button 
-                         onClick={() => setOrientation('horizontal')}
-                         className={`h-10 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${orientation === 'horizontal' ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white border-neutral-100 text-neutral-400'}`}
-                      >
-                         Horizontal
-                      </button>
-                      <button 
-                         onClick={() => setOrientation('vertical')}
-                         className={`h-10 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${orientation === 'vertical' ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white border-neutral-100 text-neutral-400'}`}
-                      >
-                         Vertical
-                      </button>
-                   </div>
-                </div>
-
-                <div className="space-y-4 pt-4 border-t border-neutral-50">
-                    <div className="flex items-center justify-between">
-                       <div className="flex items-center gap-2">
-                         <Palette size={12} className="text-neutral-400" />
-                         <span className="text-[10px] font-bold uppercase text-neutral-400">Auto-color Sync</span>
-                       </div>
-                       <button 
-                          onClick={() => setExtractColor(!extractColor)}
-                          className={`w-12 h-6 rounded-full transition-colors relative ${extractColor ? 'bg-indigo-500' : 'bg-neutral-200'}`}
-                       >
-                          <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${extractColor ? 'left-7' : 'left-1'}`} />
-                       </button>
-                    </div>
-                </div>
-
-                <AnimatePresence>
-                  {layout === 'overlay' && (
-                    <motion.div 
-                       initial={{ opacity: 0, height: 0 }}
-                       animate={{ opacity: 1, height: 'auto' }}
-                       exit={{ opacity: 0, height: 0 }}
-                       className="space-y-4 pt-4 border-t border-neutral-50 overflow-hidden"
-                    >
-                       <div className="flex items-center gap-2 mb-1">
-                         <Layout size={12} className="text-neutral-400" />
-                         <span className="text-[10px] font-bold uppercase text-neutral-400">QR/Barcode Position</span>
-                       </div>
-                       <div className="grid grid-cols-2 gap-2">
-                          {(['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const).map(pos => (
                             <button 
-                               key={pos}
-                               onClick={() => setCodePosition(pos)}
-                               className={`h-10 rounded-xl text-[8px] font-black uppercase tracking-widest border transition-all ${codePosition === pos ? 'bg-neutral-900 text-white' : 'bg-white text-neutral-400 border-neutral-100'}`}
+                               onClick={() => setBulkMode(!bulkMode)}
+                               className={`w-full h-10 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${bulkMode ? 'bg-indigo-600 text-white shadow-md' : 'bg-neutral-100 text-neutral-400'}`}
                             >
-                               {pos.replace('-', ' ')}
+                               <ListChecks size={14} />
+                               {bulkMode ? 'Direct Input' : 'Enable Bulk Mode'}
                             </button>
-                          ))}
-                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
 
-                <div className="space-y-4 pt-4 border-t border-neutral-50">
-                    <div className="flex items-center justify-between">
-                       <div className="flex items-center gap-2">
-                         <Sparkles size={12} className="text-neutral-400" />
-                         <span className="text-[10px] font-bold uppercase text-neutral-400">BG Special Effect</span>
-                       </div>
-                       <button 
-                          onClick={() => setUseBackgroundImage(!useBackgroundImage)}
-                          className={`w-12 h-6 rounded-full transition-colors relative ${useBackgroundImage ? 'bg-indigo-500' : 'bg-neutral-200'}`}
-                       >
-                          <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${useBackgroundImage ? 'left-7' : 'left-1'}`} />
-                       </button>
-                    </div>
+                            {bulkMode ? (
+                               <div className="space-y-2">
+                                  <label className="text-[9px] font-bold uppercase text-neutral-400">Customer Names</label>
+                                  <textarea 
+                                    value={bulkNames}
+                                    onChange={e => setBulkNames(e.target.value)}
+                                    placeholder="John Doe&#10;Jane Smith" 
+                                    className="w-full bg-neutral-50 border-none rounded-xl p-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all h-32"
+                                  />
+                               </div>
+                            ) : (
+                               <div className="relative">
+                                 <User className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300" size={16} />
+                                 <input 
+                                   type="text" 
+                                   placeholder="Attendant Name" 
+                                   value={customerName}
+                                   onChange={e => setCustomerName(e.target.value)}
+                                   className="w-full bg-neutral-50 border-none rounded-xl h-12 pl-12 pr-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
+                                 />
+                               </div>
+                            )}
+                         </motion.div>
+                      )}
+                   </AnimatePresence>
                 </div>
 
-                <div className="space-y-2">
-                   <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <ImageIcon size={12} className="text-neutral-400" />
-                        <span className="text-[10px] font-bold uppercase text-neutral-400">Featured Image</span>
-                      </div>
-                      {featuredImage && (
-                        <button onClick={() => setFeaturedImage(null)} className="text-[8px] font-black uppercase text-rose-500">Remove</button>
-                      )}
-                   </div>
+                {/* Typography Section */}
+                <div className="border-b border-neutral-50 pb-4">
                    <button 
-                      onClick={() => featuredImageRef.current?.click()}
-                      className="w-full h-24 border-2 border-dashed border-neutral-100 rounded-xl flex flex-col items-center justify-center gap-2 hover:bg-neutral-50 transition-colors overflow-hidden group"
+                      onClick={() => setExpandedSection(expandedSection === 'type' ? null : 'type')}
+                      className="w-full flex items-center justify-between group"
                    >
-                      {featuredImage ? (
-                        <img src={featuredImage} alt="featured preview" className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
-                      ) : (
-                        <>
-                          <ImageIcon size={20} className="text-neutral-300" />
-                          <span className="text-[8px] font-bold uppercase text-neutral-400">Upload Ticket Backdrop</span>
-                        </>
-                      )}
-                   </button>
-                   <input 
-                      type="file" 
-                      ref={featuredImageRef}
-                      onChange={handleFeaturedImageUpload}
-                      className="hidden" 
-                      accept="image/*"
-                   />
-                </div>
-
-                <div className="space-y-2">
-                   <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <ImageIcon size={12} className="text-neutral-400" />
-                        <span className="text-[10px] font-bold uppercase text-neutral-400">Organization Logo</span>
+                      <label className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400 group-hover:text-neutral-900 cursor-pointer">Typography & Scale</label>
+                      <div className={`transition-transform md:hidden ${expandedSection === 'type' ? 'rotate-180' : ''}`}>
+                         <Plus size={14} className="text-neutral-300" />
                       </div>
-                      {logo && (
-                        <button onClick={() => setLogo(null)} className="text-[8px] font-black uppercase text-rose-500">Remove</button>
-                      )}
-                   </div>
-                   <button 
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full h-12 border-2 border-dashed border-neutral-100 rounded-xl flex items-center justify-center gap-2 hover:bg-neutral-50 transition-colors"
-                   >
-                      {logo ? (
-                        <img src={logo} alt="preview" className="h-6 w-6 object-contain" />
-                      ) : (
-                        <ImageIcon size={16} className="text-neutral-300" />
-                      )}
-                      <span className="text-[10px] font-bold uppercase text-neutral-400">{logo ? 'Logo Uploaded' : 'Select Identifier Logo'}</span>
                    </button>
-                   <input 
-                      type="file" 
-                      ref={fileInputRef}
-                      onChange={handleLogoUpload}
-                      className="hidden" 
-                      accept="image/*"
-                   />
+                   
+                   <AnimatePresence initial={false}>
+                      {(expandedSection === 'type' || window.innerWidth >= 768) && (
+                         <motion.div 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="space-y-6 pt-4 overflow-hidden"
+                         >
+                            <div className="grid grid-cols-2 gap-4">
+                               <div className="space-y-2">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Type size={12} className="text-neutral-400" />
+                                    <span className="text-[10px] font-bold uppercase text-neutral-400">Typeface</span>
+                                  </div>
+                                  <select 
+                                    value={fontFamily}
+                                    onChange={e => setFontFamily(e.target.value)}
+                                    className="w-full h-10 rounded-xl bg-neutral-50 border-none text-[10px] font-bold uppercase"
+                                  >
+                                     <option value="Inter">Sans Modern</option>
+                                     <option value="'JetBrains Mono'">Tech Mono</option>
+                                     <option value="'Playfair Display'">Classic Serif</option>
+                                     <option value="Outfit">Geometric</option>
+                                     <option value="Space Grotesk">Technical</option>
+                                  </select>
+                               </div>
+                               <div className="space-y-2">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-[10px] font-bold uppercase text-neutral-400">Scale</span>
+                                    <span className="text-[8px] font-mono text-indigo-500">{Math.round(fontSize * 100)}%</span>
+                                  </div>
+                                  <input 
+                                    type="range" min="0.5" max="1.5" step="0.05"
+                                    value={fontSize}
+                                    onChange={e => setFontSize(parseFloat(e.target.value))}
+                                    className="w-full h-2 accent-indigo-500 bg-neutral-100 rounded-lg appearance-none cursor-pointer mt-4"
+                                  />
+                               </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                               <div className="space-y-2">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-[10px] font-bold uppercase text-neutral-400">Tracking</span>
+                                    <span className="text-[8px] font-mono text-indigo-500">{letterSpacing}px</span>
+                                  </div>
+                                  <input 
+                                    type="range" min="-1" max="5" step="0.5"
+                                    value={letterSpacing}
+                                    onChange={e => setLetterSpacing(parseFloat(e.target.value))}
+                                    className="w-full h-2 accent-indigo-500 bg-neutral-100 rounded-lg appearance-none cursor-pointer mt-4"
+                                  />
+                               </div>
+                               <div className="space-y-2">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-[10px] font-bold uppercase text-neutral-400">Leading</span>
+                                    <span className="text-[8px] font-mono text-indigo-500">{lineHeight}</span>
+                                  </div>
+                                  <input 
+                                    type="range" min="0.8" max="1.8" step="0.1"
+                                    value={lineHeight}
+                                    onChange={e => setLineHeight(parseFloat(e.target.value))}
+                                    className="w-full h-2 accent-indigo-500 bg-neutral-100 rounded-lg appearance-none cursor-pointer mt-4"
+                                  />
+                               </div>
+                            </div>
+                         </motion.div>
+                      )}
+                   </AnimatePresence>
                 </div>
 
-                <div className="space-y-2 pt-2">
-                   <div className="flex items-center gap-2 mb-3">
-                      <Sparkles size={12} className="text-indigo-500" />
-                      <span className="text-[10px] font-bold uppercase text-neutral-400">Validation Protocol</span>
-                   </div>
-                   <div className="grid grid-cols-2 gap-2">
-                      <button 
-                        onClick={() => setCodeType('qr')}
-                        className={`h-12 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${codeType === 'qr' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-neutral-100 text-neutral-400'}`}
-                      >
-                        QR Engine
-                      </button>
-                      <button 
-                        onClick={() => setCodeType('barcode')}
-                        className={`h-12 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${codeType === 'barcode' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-neutral-100 text-neutral-400'}`}
-                      >
-                        Barcode Gen
-                      </button>
-                   </div>
+                {/* Visuals Section */}
+                <div className="border-b border-neutral-50 pb-4">
+                   <button 
+                      onClick={() => setExpandedSection(expandedSection === 'visuals' ? null : 'visuals')}
+                      className="w-full flex items-center justify-between group"
+                   >
+                      <label className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400 group-hover:text-neutral-900 cursor-pointer">Visual Config</label>
+                      <div className={`transition-transform md:hidden ${expandedSection === 'visuals' ? 'rotate-180' : ''}`}>
+                         <Plus size={14} className="text-neutral-300" />
+                      </div>
+                   </button>
+                   
+                   <AnimatePresence initial={false}>
+                      {(expandedSection === 'visuals' || window.innerWidth >= 768) && (
+                         <motion.div 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="space-y-6 pt-4 overflow-hidden"
+                         >
+                            <div className="grid grid-cols-2 gap-4">
+                               <div className="space-y-2">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Palette size={12} className="text-neutral-400" />
+                                    <span className="text-[10px] font-bold uppercase text-neutral-400">Main Color</span>
+                                  </div>
+                                  <input 
+                                    type="color" 
+                                    value={color}
+                                    onChange={e => setColor(e.target.value)}
+                                    className="w-full h-10 rounded-xl cursor-pointer bg-neutral-50 border-none"
+                                  />
+                               </div>
+                               <div className="space-y-2">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Layout size={12} className="text-neutral-400" />
+                                    <span className="text-[10px] font-bold uppercase text-neutral-400">Layout</span>
+                                  </div>
+                                  <select 
+                                    value={layout}
+                                    onChange={e => setLayout(e.target.value as any)}
+                                    className="w-full h-10 rounded-xl bg-neutral-50 border-none text-[10px] font-bold uppercase"
+                                  >
+                                     {layouts.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
+                                  </select>
+                               </div>
+                            </div>
+
+                            <div className="space-y-2">
+                               <div className="flex items-center gap-2 mb-1">
+                                 <Sparkles size={12} className="text-neutral-400" />
+                                 <span className="text-[10px] font-bold uppercase text-neutral-400">Orientation</span>
+                               </div>
+                               <div className="grid grid-cols-2 gap-2">
+                                  <button 
+                                     onClick={() => setOrientation('horizontal')}
+                                     className={`h-10 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${orientation === 'horizontal' ? 'bg-neutral-900 text-white border-neutral-900 shadow-md' : 'bg-white border-neutral-100 text-neutral-400'}`}
+                                  >
+                                     Horizontal
+                                  </button>
+                                  <button 
+                                     onClick={() => setOrientation('vertical')}
+                                     className={`h-10 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${orientation === 'vertical' ? 'bg-neutral-900 text-white border-neutral-900 shadow-md' : 'bg-white border-neutral-100 text-neutral-400'}`}
+                                  >
+                                     Vertical
+                                  </button>
+                               </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-2">
+                               <div className="flex items-center gap-2">
+                                 <Palette size={12} className="text-neutral-400" />
+                                 <span className="text-[10px] font-bold uppercase text-neutral-400 italic">Sync palette with image</span>
+                               </div>
+                               <button 
+                                  onClick={() => setExtractColor(!extractColor)}
+                                  className={`w-10 h-5 rounded-full transition-colors relative ${extractColor ? 'bg-indigo-500' : 'bg-neutral-200'}`}
+                               >
+                                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${extractColor ? 'left-5' : 'left-0.5'}`} />
+                               </button>
+                            </div>
+
+                            {layout === 'overlay' && (
+                               <div className="space-y-4 pt-4 border-t border-neutral-50">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Layout size={12} className="text-neutral-400" />
+                                    <span className="text-[10px] font-bold uppercase text-neutral-400">QR/Barcode Position</span>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                     {(['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const).map(pos => (
+                                       <button 
+                                          key={pos}
+                                          onClick={() => setCodePosition(pos)}
+                                          className={`h-10 rounded-xl text-[8px] font-black uppercase tracking-widest border transition-all ${codePosition === pos ? 'bg-neutral-900 text-white' : 'bg-white text-neutral-400 border-neutral-100'}`}
+                                       >
+                                          {pos.replace('-', ' ')}
+                                       </button>
+                                     ))}
+                                  </div>
+                               </div>
+                            )}
+                         </motion.div>
+                      )}
+                   </AnimatePresence>
+                </div>
+
+                {/* Assets Section */}
+                <div className="pb-4">
+                   <button 
+                      onClick={() => setExpandedSection(expandedSection === 'assets' ? null : 'assets')}
+                      className="w-full flex items-center justify-between group"
+                   >
+                      <label className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400 group-hover:text-neutral-900 cursor-pointer">Brand Assets</label>
+                      <div className={`transition-transform md:hidden ${expandedSection === 'assets' ? 'rotate-180' : ''}`}>
+                         <Plus size={14} className="text-neutral-300" />
+                      </div>
+                   </button>
+                   
+                   <AnimatePresence initial={false}>
+                      {(expandedSection === 'assets' || window.innerWidth >= 768) && (
+                         <motion.div 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="space-y-6 pt-4 overflow-hidden"
+                         >
+                            <div className="space-y-3">
+                               <div className="flex items-center justify-between">
+                                 <span className="text-[10px] font-bold uppercase text-neutral-400">Featured Backdrop</span>
+                                 {featuredImage && <button onClick={() => setFeaturedImage(null)} className="text-[8px] font-black uppercase text-rose-500">Remove</button>}
+                               </div>
+                               <button 
+                                  onClick={() => featuredImageRef.current?.click()}
+                                  className="w-full h-24 border-2 border-dashed border-neutral-100 rounded-xl flex flex-col items-center justify-center gap-2 hover:bg-neutral-50 transition-colors overflow-hidden group"
+                               >
+                                  {featuredImage ? (
+                                    <img src={featuredImage} alt="featured preview" className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                                  ) : (
+                                    <>
+                                      <ImageIcon size={20} className="text-neutral-300" />
+                                      <span className="text-[8px] font-bold uppercase text-neutral-400">Select Image</span>
+                                    </>
+                                  )}
+                               </button>
+                               <input type="file" ref={featuredImageRef} onChange={handleFeaturedImageUpload} className="hidden" accept="image/*" />
+                            </div>
+
+                            <div className="space-y-3">
+                               <div className="flex items-center justify-between">
+                                 <span className="text-[10px] font-bold uppercase text-neutral-400">Organization Logo</span>
+                                 {logo && <button onClick={() => setLogo(null)} className="text-[8px] font-black uppercase text-rose-500">Remove</button>}
+                               </div>
+                               <button 
+                                  onClick={() => fileInputRef.current?.click()}
+                                  className="w-full h-12 border-2 border-dashed border-neutral-100 rounded-xl flex items-center justify-center gap-2 hover:bg-neutral-50 transition-colors"
+                               >
+                                  {logo ? <img src={logo} alt="preview" className="h-6 w-6 object-contain" /> : <ImageIcon size={16} className="text-neutral-300" />}
+                                  <span className="text-[10px] font-bold uppercase text-neutral-400 truncate max-w-[150px]">{logo ? 'Logo Uploaded' : 'Select Logo'}</span>
+                               </button>
+                               <input type="file" ref={fileInputRef} onChange={handleLogoUpload} className="hidden" accept="image/*" />
+                            </div>
+
+                            <div className="space-y-3">
+                               <span className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400 block mb-3">Validator</span>
+                               <div className="grid grid-cols-2 gap-2">
+                                  <button onClick={() => setCodeType('qr')} className={`h-12 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${codeType === 'qr' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-neutral-100 text-neutral-400'}`}>QR Engine</button>
+                                  <button onClick={() => setCodeType('barcode')} className={`h-12 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${codeType === 'barcode' ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-neutral-100 text-neutral-400'}`}>Barcode</button>
+                               </div>
+                            </div>
+                         </motion.div>
+                      )}
+                   </AnimatePresence>
                 </div>
              </div>
 
@@ -762,20 +819,33 @@ export default function TicketingTool() {
                 className={`w-full h-16 rounded-2xl flex items-center justify-center gap-3 text-[12px] font-black uppercase tracking-[0.2em] transition-all shadow-xl ${success ? 'bg-emerald-500 text-white' : 'bg-neutral-900 text-white hover:bg-black'}`}
              >
                 {loading ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : success ? <Check size={20} /> : (bulkMode ? <ListChecks size={20} /> : <Save size={20} />)}
-                {loading ? 'Processing Protocol...' : success ? 'Deployment Successful' : (bulkMode ? 'Bulk Deploy' : 'Auth & Generate')}
+                {loading ? 'Processing...' : success ? 'Auth Successful' : (bulkMode ? 'Bulk Generate' : 'Generate & Deploy')}
              </button>
+          </div>
+
+          {/* Tips Card for Desktop */}
+          <div className="hidden lg:block bg-indigo-600 rounded-[2rem] p-8 text-white relative overflow-hidden group shadow-2xl shadow-indigo-600/20">
+             <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700" />
+             <h4 className="text-xl font-black uppercase italic mb-4">Pro Insight</h4>
+             <p className="text-indigo-100 text-xs font-medium leading-relaxed opacity-80 mb-6">
+                Use high-contrast colors for QR readability. The "Overlay" engine works best with pre-designed 5.5x2 inch templates.
+             </p>
+             <div className="flex items-center gap-2 text-[10px] font-black tracking-widest uppercase">
+                <Shield size={14} />
+                <span>Encrypted Asset Delivery</span>
+             </div>
           </div>
         </div>
 
         {/* Live Preview Block */}
-        <div className="xl:col-span-8 flex flex-col items-center">
-           <div className="w-full flex items-center justify-between mb-6 bg-neutral-900 p-4 rounded-2xl shadow-xl">
+        <div className={`md:col-span-7 lg:col-span-8 flex flex-col items-center ${activeMobileTab === 'edit' ? 'hidden md:flex' : 'flex'}`}>
+           <div className="w-full flex items-center justify-between mb-6 bg-neutral-900 p-4 rounded-2xl shadow-2xl">
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 px-3 py-1 bg-rose-500/20 border border-rose-500/50 rounded-full">
+                <div className="flex items-center gap-2 px-3 py-1 bg-white/10 border border-white/20 rounded-full shrink-0">
                   <div className="w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500">Live Preview</span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Live Monitor</span>
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-500 italic">Viewport: {orientation.toUpperCase()}</span>
+                <span className="hidden sm:inline text-[9px] font-black uppercase tracking-[0.3em] text-neutral-500 italic">Canvas: {orientation.toUpperCase()}</span>
               </div>
               <div className="flex items-center gap-2">
                  <button 
@@ -783,29 +853,32 @@ export default function TicketingTool() {
                     className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all border border-white/10 group"
                  >
                     <Download size={14} className="group-hover:scale-110 transition-transform" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest">PNG</span>
+                    <span className="hidden md:inline text-[10px] font-black uppercase tracking-widest font-mono">PNG</span>
                  </button>
                  <button 
                     onClick={() => handlePrint()}
                     className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all shadow-lg shadow-indigo-500/20 group"
                  >
                     <Printer size={14} className="group-hover:scale-110 transition-transform" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest">Print</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest font-mono">Print</span>
                  </button>
               </div>
            </div>
 
-           <div className={`w-full min-h-[600px] bg-neutral-50 rounded-[3rem] border border-neutral-100 shadow-inner flex items-center justify-center p-8 md:p-12 relative overflow-hidden group/workspace transition-all
-             ${orientation === 'vertical' ? 'h-[900px]' : ''}`}>
+           <div className={`w-full min-h-[450px] md:min-h-[600px] bg-neutral-50 rounded-[3rem] border border-neutral-100 shadow-inner flex items-center justify-center p-4 md:p-12 relative overflow-hidden group/workspace transition-all
+             ${orientation === 'vertical' ? 'h-[800px] md:h-[900px]' : ''}`}>
                {/* Grid Pattern Background for Workspace */}
                <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
                     style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
                
-               <div className={`w-full perspective-1000 flex justify-center ${orientation === 'vertical' ? 'overflow-auto h-full items-start pt-8' : ''}`}>
+               <div className={`w-full perspective-1000 flex justify-center ${orientation === 'vertical' ? 'overflow-auto md:overflow-visible h-full items-start md:items-center pt-4 md:pt-0' : ''}`}>
                <motion.div 
                   ref={ticketRef}
-                  className={`mx-auto rounded-[1.5rem] overflow-hidden shadow-2xl flex transition-all duration-500 relative
-                    ${orientation === 'horizontal' ? 'w-full max-w-3xl aspect-[5.5/2] flex-row' : 'w-[280px] h-[770px] flex-col scale-[0.8] origin-top md:scale-100'}
+                  className={`mx-auto rounded-[1.25rem] md:rounded-[1.5rem] overflow-hidden shadow-2xl flex transition-all duration-300 relative
+                    ${orientation === 'horizontal' 
+                       ? 'w-full max-w-[320px] md:max-w-3xl aspect-[5.5/2] flex-row scale-[0.9] md:scale-100' 
+                       : 'w-[260px] h-[720px] md:w-[280px] md:h-[770px] flex-col scale-[0.7] md:scale-100 origin-top'
+                    }
                     ${layout === 'vintage' ? 'bg-[#fdfbf7] border-4 border-[#8B4513]/20 font-serif' : 
                      layout === 'neon' ? 'bg-[#0a0a0a] border border-[#00f3ff]/30 text-[#00f3ff]' : 
                      layout === 'brutalist' ? 'bg-white border-4 border-black shadow-[12px_12px_0_0_#000] rounded-none' : 
@@ -957,7 +1030,8 @@ export default function TicketingTool() {
                       <div className="absolute right-0 top-[15%] -mt-2.5 -mr-2.5 w-5 h-5 bg-neutral-50 rounded-full shadow-inner" />
                    </>
                  )}
-              </motion.div>
+               </motion.div>
+            </div>
            </div>
 
 
