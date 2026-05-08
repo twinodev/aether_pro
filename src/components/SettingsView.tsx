@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Moon, Sun, Monitor, Bell, Shield, User, CreditCard, ChevronRight, Check, Trash2, Smartphone, Globe, Info, LogOut, ArrowUpRight } from 'lucide-react';
+import { Moon, Sun, Monitor, Bell, Shield, User, CreditCard, ChevronRight, Check, Trash2, Smartphone, Globe, Info, LogOut, ArrowUpRight, Send, AlertTriangle } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { emailService } from '../services/emailService';
 import { motion, AnimatePresence } from 'motion/react';
 
 type SettingsTab = 'interface' | 'identity' | 'signals' | 'security';
@@ -10,6 +11,26 @@ export default function SettingsView() {
   const { theme, setTheme } = useTheme();
   const { user, isVip, isAdmin, logout } = useAuth();
   const [activeTab, setActiveTab ] = useState<SettingsTab>('interface');
+
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const sendTestEmail = async () => {
+    if (!user?.email) return;
+    
+    setEmailStatus('loading');
+    setErrorMessage('');
+    
+    try {
+      await emailService.sendWelcomeEmail(user.email, user.displayName || 'Operative');
+      setEmailStatus('success');
+      setTimeout(() => setEmailStatus('idle'), 3000);
+    } catch (err: any) {
+      console.error(err);
+      setEmailStatus('error');
+      setErrorMessage(err.message || 'Transmission failed');
+    }
+  };
 
   const themeOptions = [
     { id: 'light', label: 'Light Mode', icon: Sun },
@@ -253,6 +274,53 @@ export default function SettingsView() {
                         <span className="text-[8px] md:text-[9px] font-medium text-neutral-500 uppercase tracking-tighter">Weekly summary</span>
                       </div>
                       <Switch active={toggles.emailAlerts} onClick={() => toggleState('emailAlerts')} />
+                    </div>
+
+                    <div className="pt-4 mt-4 border-t border-neutral-100 dark:border-neutral-800">
+                      <div className="bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 p-6 md:p-8 rounded-[2rem] relative overflow-hidden group">
+                        <div className="relative z-10">
+                          <div className="flex items-center gap-2 mb-4">
+                            <Send size={14} className="text-rose-500" />
+                            <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Deployment Test</span>
+                          </div>
+                          <h4 className="text-lg font-black uppercase tracking-tighter mb-2">Test Signal Relay</h4>
+                          <p className="text-[10px] opacity-60 uppercase tracking-widest leading-relaxed mb-6 max-w-[240px]">
+                            Dispatch a verification handshake to your registered identity point to verify relay integrity.
+                          </p>
+                          
+                          <button 
+                            onClick={sendTestEmail}
+                            disabled={emailStatus === 'loading' || !user?.email}
+                            className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                              emailStatus === 'loading' 
+                                ? 'bg-neutral-800 dark:bg-neutral-200 cursor-wait' 
+                                : emailStatus === 'success'
+                                ? 'bg-emerald-500 text-white'
+                                : emailStatus === 'error'
+                                ? 'bg-rose-500 text-white'
+                                : 'bg-rose-600 dark:bg-neutral-900 text-white hover:scale-[1.02] active:scale-[0.98]'
+                            }`}
+                          >
+                            {emailStatus === 'loading' && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                            {emailStatus === 'success' && <Check size={14} />}
+                            {emailStatus === 'error' && <AlertTriangle size={14} />}
+                            {emailStatus === 'loading' ? 'Transmitting...' : 
+                             emailStatus === 'success' ? 'Relay Confirmed' : 
+                             emailStatus === 'error' ? 'Relay Failed' : 
+                             'Dispatch Test Signal'}
+                          </button>
+                          
+                          {emailStatus === 'error' && (
+                            <p className="mt-3 text-[9px] text-rose-400 font-bold uppercase tracking-widest text-center">
+                              {errorMessage}
+                            </p>
+                          )}
+                        </div>
+                        
+                        <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform duration-700">
+                          <Send size={120} strokeWidth={1} />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </section>
