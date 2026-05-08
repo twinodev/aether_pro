@@ -3,6 +3,7 @@ import { RefreshCw, Download, FileAudio, FileVideo, FileImage, FileCode, Upload,
 import { motion, AnimatePresence } from 'motion/react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import OfflineAlert from '../ui/OfflineAlert.tsx';
 
 const CONVERSION_MAP: Record<string, string[]> = {
   'image/jpeg': ['png', 'webp', 'pdf'],
@@ -183,6 +184,7 @@ export default function FileConverter() {
   return (
     <div className="max-w-6xl mx-auto">
       <header className="mb-12">
+        <OfflineAlert toolName="Media Forge" />
         <div className="flex items-center gap-4 mb-4">
           <div className="w-12 h-12 bg-rose-600 text-white rounded-2xl flex items-center justify-center shadow-xl shadow-rose-600/10">
             <RefreshCw size={24} />

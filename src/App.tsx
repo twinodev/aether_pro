@@ -203,12 +203,12 @@ export default function App() {
            </div>
         </div>
 
-        <nav className="flex-1 px-4 pt-4 space-y-1 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto custom-scrollbar min-h-0">
           {filteredNavItems.map((item) => (
             <button
               key={item.id}
               onClick={() => navigateTo(item.id)}
-              className={`w-full flex items-center gap-4 px-4 h-12 rounded-xl transition-all relative group ${
+              className={`w-full flex items-center gap-4 px-4 h-12 rounded-xl transition-all relative group shrink-0 ${
                 currentView === item.id
                   ? 'bg-neutral-900 text-white shadow-xl shadow-neutral-900/10'
                   : 'text-neutral-500 hover:bg-neutral-100/50 hover:text-neutral-900'
@@ -248,8 +248,8 @@ export default function App() {
           </button>
         </div>
 
-        <div className="mt-4 px-4 pb-6 hidden lg:block">
-           <AdMobAd adSlot="sidebar-bottom" format="vertical" className="h-48" />
+        <div className="mt-auto px-4 pb-6 hidden lg:block overflow-hidden max-h-[25vh] shrink-0 border-t border-neutral-50 pt-4">
+           <AdMobAd adSlot="sidebar-bottom" format="vertical" className="h-40" />
         </div>
       </aside>
 
@@ -330,10 +330,14 @@ export default function App() {
               {renderView()}
               
               {!isAdmin && currentView !== 'home' && (
-                <div className="mt-20 border-t border-neutral-100 pt-12">
-                   <div className="flex flex-col items-center gap-4">
-                      <span className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-300">SPONSORED PARTNER</span>
-                      <AdMobAd adSlot="content-bottom" format="horizontal" className="w-full max-w-4xl h-32" />
+                <div className="mt-12 md:mt-20 border-t border-neutral-100 pt-8 md:pt-12">
+                   <div className="flex flex-col items-center gap-3">
+                      <div className="flex items-center gap-2 opacity-30">
+                        <div className="w-1 h-1 bg-neutral-400 rounded-full" />
+                        <span className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.4em] text-neutral-400">Sponsored Intelligence</span>
+                        <div className="w-1 h-1 bg-neutral-400 rounded-full" />
+                      </div>
+                      <AdMobAd adSlot="content-bottom" format="horizontal" className="w-full max-w-4xl h-24 md:h-32" />
                    </div>
                 </div>
               )}

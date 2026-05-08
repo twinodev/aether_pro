@@ -36,7 +36,7 @@ export default function AdMobAd({
   }, []);
 
   return (
-    <div className={`ad-container overflow-hidden flex items-center justify-center my-4 ${className}`}>
+    <div className={`ad-container overflow-hidden flex items-center justify-center my-4 relative group ${className}`}>
       {/* 
         This is a simulation of the AdSense/AdMob for Web code.
         In a real production environment, this is where the ad would render.
@@ -52,9 +52,13 @@ export default function AdMobAd({
       />
       
       {/* Visual placeholder for developers */}
-      <div className="absolute inset-0 bg-neutral-100 flex flex-col items-center justify-center border-2 border-dashed border-neutral-200 rounded-lg pointer-events-none">
-        <span className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Advertisement Block</span>
-        <span className="text-[8px] font-medium text-neutral-300 mt-1">ID: {adSlot}</span>
+      <div className="absolute inset-0 bg-neutral-50/50 flex flex-col items-center justify-center border border-neutral-100 rounded-2xl pointer-events-none group-hover:bg-neutral-100/50 transition-colors">
+        <div className="flex items-center gap-1.5 opacity-40">
+          <div className="w-1 h-1 bg-neutral-400 rounded-full" />
+          <span className="text-[8px] font-black uppercase tracking-[0.2em] text-neutral-400">Sponsored</span>
+          <div className="w-1 h-1 bg-neutral-400 rounded-full" />
+        </div>
+        <div className="mt-2 text-[7px] font-bold text-neutral-300 uppercase tracking-widest hidden md:block group-hover:opacity-100 opacity-0 transition-opacity">Partner Intelligence Asset</div>
       </div>
     </div>
   );

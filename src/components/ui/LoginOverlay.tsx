@@ -38,19 +38,19 @@ export default function LoginOverlay() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[70vh] p-8 text-center max-w-xl mx-auto py-20">
+    <div className="flex flex-col items-center justify-center min-h-[90vh] md:min-h-[70vh] p-4 md:p-8 text-center max-w-xl mx-auto py-12 md:py-20">
       <motion.div 
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="w-20 h-20 bg-neutral-900 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-black/10 mb-8"
+        className="w-16 h-16 md:w-20 md:h-20 bg-neutral-900 text-white rounded-2xl md:rounded-3xl flex items-center justify-center shadow-2xl shadow-black/10 mb-6 md:mb-8"
       >
-        <ShieldCheck size={40} />
+        <ShieldCheck size={32} className="md:w-10 md:h-10" />
       </motion.div>
       
-      <h2 className="text-4xl font-black tracking-tighter text-neutral-900 mb-4 uppercase">
+      <h2 className="text-2xl md:text-4xl font-black tracking-tighter text-neutral-900 mb-3 md:mb-4 uppercase">
         {authMode === 'login' ? 'Identity Required' : 'Join Aether Pro'}
       </h2>
-      <p className="text-neutral-500 font-medium leading-relaxed mb-10 text-lg">
+      <p className="text-neutral-400 md:text-neutral-500 font-medium leading-relaxed mb-8 md:mb-10 text-sm md:text-lg">
         {authMode === 'login' 
           ? 'Authenticate to access your professional toolset and synchronized intelligence.'
           : 'Create your agent profile to unlock persistent workspace features.'}
@@ -145,7 +145,7 @@ export default function LoginOverlay() {
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <div className="flex items-center justify-between pl-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Passphrase</label>
                   {authMode === 'login' && (
@@ -208,16 +208,16 @@ export default function LoginOverlay() {
         </AnimatePresence>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 w-full max-w-sm mt-12 text-left">
+      <div className="grid grid-cols-2 gap-3 md:gap-4 w-full max-w-sm mt-8 md:mt-12 text-left">
         {[
           { icon: Sparkles, text: 'AI Genies' },
           { icon: Zap, text: 'Zero Latency' }
         ].map((item, i) => (
-          <div key={i} className="flex items-center gap-3 p-4 bg-white border border-neutral-100 rounded-2xl">
+          <div key={i} className="flex flex-col md:flex-row items-center md:items-center gap-2 md:gap-3 p-3 md:p-4 bg-white border border-neutral-100 rounded-xl md:rounded-2xl">
             <div className="w-8 h-8 rounded-lg bg-neutral-50 flex items-center justify-center text-neutral-400">
-              <item.icon size={16} />
+              <item.icon size={14} className="md:w-4" />
             </div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-neutral-900">{item.text}</span>
+            <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-neutral-900">{item.text}</span>
           </div>
         ))}
       </div>

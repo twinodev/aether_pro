@@ -1,6 +1,9 @@
 {
   "name": "Aether Pro",
-  "description": "Aether Pro is a precision-engineered suite of privacy-first utility tools. Powered by AI and cutting-edge web technologies, it offers high-performance digital solutions with zero latency.",
-  "requestFramePermissions": ["camera", "microphone"],
+  "description": "Aether Pro is a precision-engineered suite of privacy-first utility tools. Powered by cutting-edge web technologies, it offers high-performance digital solutions with zero latency.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
   "majorCapabilities": []
 }

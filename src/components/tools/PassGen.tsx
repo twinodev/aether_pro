@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Copy, Check, RefreshCw, Key, Lock, Eye, EyeOff, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import OfflineAlert from '../ui/OfflineAlert.tsx';
 
 export default function PassGen() {
   const [password, setPassword] = useState('');
@@ -84,6 +85,7 @@ export default function PassGen() {
   return (
     <div className="max-w-xl mx-auto p-4 md:p-8">
       <header className="mb-12">
+        <OfflineAlert toolName="Vault Engine" />
         <div className="flex items-center gap-3 mb-2">
           <div className="p-2 bg-rose-500 text-white rounded-lg">
             <Shield size={24} />

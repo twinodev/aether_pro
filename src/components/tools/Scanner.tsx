@@ -3,6 +3,7 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Camera, StopCircle, FlipHorizontal, Upload, X, CheckCircle2, History, Copy, ExternalLink, QrCode, Tickets, ShieldAlert, ShieldCheck, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { validateTicket } from '../../services/ticketService';
+import OfflineAlert from '../ui/OfflineAlert.tsx';
 
 interface ScanHistory {
   data: string;
@@ -127,6 +128,7 @@ export default function Scanner() {
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-8">
       <header className="mb-8 font-sans">
+        <OfflineAlert toolName={isTicketMode ? "Gatekeeper Entry" : "Omni Scanner"} />
         <div className="flex items-center justify-between mb-2">
            <div className="flex items-center gap-3">
               <div className="p-2 bg-neutral-900 text-white rounded-lg">

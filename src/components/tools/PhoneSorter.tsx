@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Phone, Users, Copy, Download, Trash2, Filter, Check, Share2, Globe, FileUp, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import OfflineAlert from '../ui/OfflineAlert.tsx';
 
 interface NetworkGroup {
   name: string;
@@ -130,6 +131,7 @@ export default function PhoneSorter() {
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-8">
       <header className="mb-12">
+        <OfflineAlert toolName="Lead Intelligence" />
         <div className="flex items-center gap-3 mb-2">
           <div className="p-2 bg-emerald-600 text-white rounded-lg">
             <Users size={24} />

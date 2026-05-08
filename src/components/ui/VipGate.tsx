@@ -33,14 +33,14 @@ export default function VipGate({ toolName, onUnlocked, onClose }: VipGateProps)
           <X size={20} className="text-neutral-400" />
         </button>
 
-        <div className="p-10 pt-16 flex flex-col items-center text-center">
-          <div className="w-20 h-20 bg-rose-600 text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-rose-600/20 mb-8">
-            <Sparkles size={40} />
+        <div className="p-6 md:p-10 pt-12 md:pt-16 flex flex-col items-center text-center">
+          <div className="w-16 h-16 md:w-20 md:h-20 bg-rose-600 text-white rounded-2xl md:rounded-3xl flex items-center justify-center shadow-2xl shadow-rose-600/20 mb-6 md:mb-8">
+            <Sparkles size={32} className="md:w-10 md:h-10" />
           </div>
           
-          <h2 className="text-3xl font-black tracking-tight text-neutral-900 mb-4 uppercase">VIP ACCESS</h2>
-          <p className="text-neutral-500 font-medium leading-relaxed mb-10">
-            <span className="text-rose-600 font-bold">{toolName}</span> is a premium module. Watch a high-priority sponsor message to unlock access for this session.
+          <h2 className="text-2xl md:text-3xl font-black tracking-tight text-neutral-900 mb-3 md:mb-4 uppercase">VIP ACCESS</h2>
+          <p className="text-neutral-500 font-medium leading-relaxed mb-8 md:mb-10 text-sm md:text-base">
+            <span className="text-rose-600 font-bold">{toolName}</span> is a premium module. Watch a donor message to unlock access.
           </p>
 
           <div className="grid grid-cols-2 gap-4 w-full mb-10">

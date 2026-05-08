@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Camera, RefreshCw, Download, Layers, Eraser, Maximize, RotateCcw, FileText, Image as ImageIcon, Crop, FileDown, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
+import OfflineAlert from '../ui/OfflineAlert.tsx';
 
 interface ScanFilter {
   name: string;
@@ -130,6 +131,7 @@ export default function DocScanner() {
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-8">
       <header className="mb-12">
+        <OfflineAlert toolName="Document Intelligence" />
         <div className="flex items-center gap-3 mb-2">
           <div className="p-2 bg-neutral-900 text-white rounded-lg">
             <FileText size={24} />
