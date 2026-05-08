@@ -19,6 +19,7 @@ import { useAuth } from './contexts/AuthContext.tsx';
 import LoginOverlay from './components/ui/LoginOverlay.tsx';
 import VipGate from './components/ui/VipGate.tsx';
 import BroadcastBanner from './components/ui/BroadcastBanner.tsx';
+import AdMobAd from './components/ui/AdMobAd.tsx';
 import { User as UserIcon } from 'lucide-react';
 
 const PREMIUM_VIEWS: string[] = ['phone-sorter', 'file-converter', 'image-compressor', 'ip-intelligence', 'ticketing'];
@@ -32,6 +33,7 @@ export default function App() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [pendingView, setPendingView] = useState<View | null>(null);
   const [unlockedTools, setUnlockedTools] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
   const { user, login, logout, loading, isVip, isAdmin } = useAuth();
 
   // Notification setup
@@ -114,7 +116,9 @@ export default function App() {
         {(() => {
           switch (currentView) {
             case 'home':
-              return <Home onSelectTool={navigateTo} />;
+              return <Home onSelectTool={navigateTo} onUnlockAll={() => {
+                setUnlockedTools(new Set(PREMIUM_VIEWS));
+              }} />;
             case 'qr-builder':
               return <QRBuilder />;
             case 'barcode-builder':
@@ -163,33 +167,69 @@ export default function App() {
     { id: 'phone-sorter', label: 'Phone Sorter', icon: Users },
   ];
 
+  const filteredNavItems = navItems.filter(item => {
+    const matchesSearch = item.label.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesAdmin = !item.adminOnly || isAdmin;
+    return matchesSearch && matchesAdmin;
+  });
+
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-neutral-50">
+    <div className="min-h-screen flex flex-col md:flex-row bg-[#fafafa]">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-20 lg:w-64 bg-white border-r border-neutral-200 h-screen sticky top-0 z-50">
-        <div className="p-6 flex items-center justify-center lg:justify-start gap-3">
-          <div className="w-10 h-10 bg-neutral-900 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-neutral-900/10 shrink-0">
-            <LayoutGrid size={20} />
+      <aside className="hidden md:flex flex-col w-20 lg:w-72 bg-white border-r border-neutral-200 h-screen sticky top-0 z-50">
+        <div className="p-8 flex items-center justify-center lg:justify-start gap-4">
+          <div className="w-12 h-12 bg-neutral-900 rounded-[1.25rem] flex items-center justify-center text-white shadow-2xl shadow-neutral-900/20 shrink-0 transform hover:scale-105 transition-transform cursor-pointer" onClick={() => navigateTo('home')}>
+            <LayoutGrid size={24} />
           </div>
-          <span className="hidden lg:block font-black tracking-tighter text-xl uppercase transition-opacity">AETHER</span>
+          <div className="hidden lg:flex flex-col">
+            <span className="font-black tracking-tighter text-2xl uppercase leading-none">AETHER</span>
+            <span className="text-[10px] font-black text-rose-600 uppercase tracking-[0.2em] mt-1">Experimental</span>
+          </div>
         </div>
 
-        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto custom-scrollbar">
-          {navItems.filter(item => !item.adminOnly || isAdmin).map((item) => (
+        {/* Desktop Search */}
+        <div className="px-6 mb-4 hidden lg:block">
+           <div className="relative group">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-neutral-900 transition-colors">
+                 <LayoutGrid size={14} />
+              </div>
+              <input 
+                type="text"
+                placeholder="Search tools..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-11 bg-neutral-50 border border-neutral-100 rounded-xl pl-10 pr-4 text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:ring-4 focus:ring-neutral-900/5 focus:border-neutral-200 transition-all"
+              />
+           </div>
+        </div>
+
+        <nav className="flex-1 px-4 pt-4 space-y-1 overflow-y-auto custom-scrollbar">
+          {filteredNavItems.map((item) => (
             <button
               key={item.id}
               onClick={() => navigateTo(item.id)}
-              className={`w-full flex items-center gap-4 px-4 h-12 rounded-2xl transition-all group ${
+              className={`w-full flex items-center gap-4 px-4 h-12 rounded-xl transition-all relative group ${
                 currentView === item.id
-                  ? 'bg-neutral-900 text-white shadow-lg shadow-neutral-900/10'
-                  : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900'
+                  ? 'bg-neutral-900 text-white shadow-xl shadow-neutral-900/10'
+                  : 'text-neutral-500 hover:bg-neutral-100/50 hover:text-neutral-900'
               }`}
             >
-              <item.icon size={20} className={`shrink-0 transition-transform ${currentView === item.id ? 'scale-110' : 'group-hover:scale-110'}`} />
-              <span className="hidden lg:block text-xs font-bold uppercase tracking-widest">{item.label}</span>
-              {currentView === item.id && <motion.div layoutId="active-pill" className="lg:hidden absolute left-0 w-1 h-6 bg-white rounded-r-full" />}
+              <item.icon size={18} className={`shrink-0 transition-transform ${currentView === item.id ? 'scale-110' : 'group-hover:scale-110'}`} />
+              <span className="hidden lg:block text-[11px] font-black uppercase tracking-widest">{item.label}</span>
+              
+              {currentView === item.id && (
+                <motion.div 
+                  layoutId="active-indicator" 
+                  className="absolute right-2 w-1 h-1 bg-white rounded-full lg:block hidden" 
+                />
+              )}
             </button>
           ))}
+          {filteredNavItems.length === 0 && (
+            <div className="py-8 text-center px-4">
+              <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">No tools found</p>
+            </div>
+          )}
         </nav>
 
         <div className="p-4 mt-auto space-y-2">
@@ -206,6 +246,10 @@ export default function App() {
             <Settings size={20} />
             <span className="hidden lg:block text-xs font-bold uppercase tracking-widest">Settings</span>
           </button>
+        </div>
+
+        <div className="mt-4 px-4 pb-6 hidden lg:block">
+           <AdMobAd adSlot="sidebar-bottom" format="vertical" className="h-48" />
         </div>
       </aside>
 
@@ -273,16 +317,26 @@ export default function App() {
         </header>
 
         {/* Main Content Scroll Area */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto px-4 py-8 md:px-12 md:py-12">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto px-4 py-8 md:px-16 md:py-20 flex justify-center">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentView}
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+              transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+              className="w-full max-w-7xl"
             >
               {renderView()}
+              
+              {!isAdmin && currentView !== 'home' && (
+                <div className="mt-20 border-t border-neutral-100 pt-12">
+                   <div className="flex flex-col items-center gap-4">
+                      <span className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-300">SPONSORED PARTNER</span>
+                      <AdMobAd adSlot="content-bottom" format="horizontal" className="w-full max-w-4xl h-32" />
+                   </div>
+                </div>
+              )}
             </motion.div>
           </AnimatePresence>
         </main>

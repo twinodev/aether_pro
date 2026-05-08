@@ -141,7 +141,8 @@ export default function TicketingTool() {
       createdAt: null,
     };
 
-    await createTicket(ticketData);
+    // Parallelize Firestore write and PDF generation to reduce delays
+    const deployPromise = createTicket(ticketData);
     
     // Generate PDF
     const doc = new jsPDF({
@@ -153,6 +154,7 @@ export default function TicketingTool() {
     // Handle Featured/Overlay Image for PDF
     if (featuredImage) {
       try {
+        // Use FAST compression
         doc.addImage(featuredImage, 'JPEG', 0, 0, 139.7, 50.8, undefined, 'FAST');
       } catch (e) {
         console.error('Error adding image to PDF', e);
@@ -160,62 +162,62 @@ export default function TicketingTool() {
     }
 
     const qrCanvas = ticketRef.current?.querySelector('canvas');
-    const qrDataUrl = qrCanvas?.toDataURL('image/png');
-
-    if (layout === 'overlay') {
-      // In overlay mode, we only add the QR/Barcode on top of the image
-      // Position depends on codePosition
-      const x = codePosition.includes('right') ? 115 : 5;
-      const y = codePosition.includes('bottom') ? 35 : 5;
+    if (qrCanvas) {
+      const qrDataUrl = qrCanvas.toDataURL('image/png', 0.8); // Slight compression
       
-      if (qrDataUrl) {
+      if (layout === 'overlay') {
+        const x = codePosition.includes('right') ? 115 : 5;
+        const y = codePosition.includes('bottom') ? 35 : 5;
+        
         doc.setFillColor(255, 255, 255);
         doc.rect(x - 1, y - 1, 22, 22, 'F');
-        doc.addImage(qrDataUrl, 'PNG', x, y, 20, 20);
-      }
-      doc.setFontSize(6);
-      doc.setTextColor(150, 150, 150);
-      doc.text(ticketId, x, y + 23);
-    } else {
-      // Standard layout PDF logic
-      doc.setFillColor(color);
-      if (orientation === 'horizontal') {
-        doc.rect(0, 0, 10, 50.8, 'F');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(18 * fontSize);
-        doc.setTextColor(40, 40, 40);
-        doc.text(eventTitle.toUpperCase(), 15, 15);
-        doc.setFontSize(12 * fontSize);
-        doc.text(`UGX ${price}`, 15, 45);
-        doc.setFontSize(10 * fontSize);
-        doc.text(customerName.toUpperCase(), 15, 30);
+        doc.addImage(qrDataUrl, 'PNG', x, y, 20, 20, undefined, 'FAST');
         
-        if (qrDataUrl) {
-          doc.addImage(qrDataUrl, 'PNG', 115, 10, 20, 20);
+        doc.setFontSize(6);
+        doc.setTextColor(150, 150, 150);
+        doc.text(ticketId, x, y + 23);
+      } else {
+        // Standard layout PDF logic
+        doc.setFillColor(color);
+        if (orientation === 'horizontal') {
+          doc.rect(0, 0, 10, 50.8, 'F');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(18 * fontSize);
+          doc.setTextColor(40, 40, 40);
+          doc.text(eventTitle.toUpperCase(), 15, 15);
+          doc.setFontSize(12 * fontSize);
+          doc.text(`UGX ${price}`, 15, 45);
+          doc.setFontSize(10 * fontSize);
+          doc.text(customerName.toUpperCase(), 15, 30);
+          
+          doc.addImage(qrDataUrl, 'PNG', 115, 10, 20, 20, undefined, 'FAST');
           doc.setFontSize(6 * fontSize);
           doc.text(ticketId, 115, 32);
-        }
-      } else {
-        doc.rect(0, 0, 50.8, 10, 'F');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(16 * fontSize);
-        doc.setTextColor(40, 40, 40);
-        doc.text(eventTitle.toUpperCase(), 5, 25);
-        
-        if (qrDataUrl) {
-          doc.addImage(qrDataUrl, 'PNG', 15, 10, 20, 20);
+        } else {
+          doc.rect(0, 0, 50.8, 10, 'F');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(16 * fontSize);
+          doc.setTextColor(40, 40, 40);
+          doc.text(eventTitle.toUpperCase(), 5, 25);
+          
+          doc.addImage(qrDataUrl, 'PNG', 15, 10, 20, 20, undefined, 'FAST');
           doc.setFontSize(6 * fontSize);
           doc.text(ticketId, 15, 32);
+          
+          doc.setFontSize(10 * fontSize);
+          doc.text(customerName.toUpperCase(), 5, 40);
+          doc.setFontSize(12 * fontSize);
+          doc.text(`UGX ${price}`, 5, 48);
         }
-        
-        doc.setFontSize(10 * fontSize);
-        doc.text(customerName.toUpperCase(), 5, 40);
-        doc.setFontSize(12 * fontSize);
-        doc.text(`UGX ${price}`, 5, 48);
       }
     }
     
+    // Wait for deployment to finish before marking success
+    await deployPromise;
     doc.save(`ticket-${ticketId}.pdf`);
+    setLoading(false);
+    setSuccess(true);
+    setTimeout(() => setSuccess(false), 3000);
   };
 
   const handleExportImage = () => {

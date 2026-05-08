@@ -22,6 +22,7 @@ export default function FileConverter() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [hasFfmpeg, setHasFfmpeg] = useState(false);
   
   const ffmpegRef = useRef(new FFmpeg());
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -44,10 +45,12 @@ export default function FileConverter() {
         wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
       });
       
-      setIsLoaded(true);
+      setHasFfmpeg(true);
     } catch (err) {
       console.error('FFmpeg failed to load:', err);
-      setError('FFmpeg failed to load. Your browser may not support SharedArrayBuffer.');
+      setHasFfmpeg(false);
+    } finally {
+      setIsLoaded(true);
     }
   };
 
@@ -66,8 +69,59 @@ export default function FileConverter() {
     }
   };
 
+  const convertWithCanvas = async (file: File, target: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas context failed'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0);
+        
+        // Handle PDF separately or via canvas? 
+        // Canvas to PDF is tricky with just native. 
+        // We can use jsPDF if needed, but for now let's handle image types.
+        let type = `image/${target === 'jpg' ? 'jpeg' : target}`;
+        const dataUrl = canvas.toDataURL(type);
+        resolve(dataUrl);
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   const convert = async () => {
-    if (!file || !targetExt || !isLoaded) return;
+    if (!file || !targetExt) return;
+
+    const isImageConversion = file.type.startsWith('image/') && ['jpg', 'png', 'webp'].includes(targetExt);
+    
+    // If it's a simple image conversion, we can bypass FFmpeg entirely for speed and reliability
+    if (isImageConversion) {
+      setIsProcessing(true);
+      setError(null);
+      setProgress(0);
+      try {
+        const result = await convertWithCanvas(file, targetExt);
+        setResultUrl(result);
+        setProgress(100);
+        return;
+      } catch (err) {
+        console.error('Canvas conversion failed, falling back to FFmpeg if loaded', err);
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+
+    // Otherwise, use FFmpeg
+    if (!hasFfmpeg) {
+      setError('The high-performance FFmpeg Engine is not available. This is usually due to browser security restrictions (SharedArrayBuffer). Image conversions still work via the fallback engine, but audio/video processing is disabled.');
+      return;
+    }
 
     setIsProcessing(true);
     setError(null);
@@ -263,8 +317,10 @@ export default function FileConverter() {
                 
                 <div className="flex-1 px-6 py-4 bg-neutral-100 rounded-3xl flex items-center justify-between">
                      <div className="flex items-center gap-3">
-                        <AlertCircle size={16} className="text-neutral-400" />
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500">Security Invariant</span>
+                        <div className={`w-2 h-2 rounded-full ${hasFfmpeg ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500">
+                            {hasFfmpeg ? 'FFmpeg Core Active' : 'Native Browser Engine Fallback'}
+                        </span>
                      </div>
                      <span className="text-[10px] font-medium text-neutral-400 underline decoration-dotted">Bypass Cloud</span>
                 </div>

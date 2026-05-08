@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, PlayCircle, Sparkles, ShieldCheck, Zap } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import AdOverlay from './AdOverlay';
+import RewardedAd from './RewardedAd';
 
 interface VipGateProps {
   toolName: string;
@@ -40,7 +40,7 @@ export default function VipGate({ toolName, onUnlocked, onClose }: VipGateProps)
           
           <h2 className="text-3xl font-black tracking-tight text-neutral-900 mb-4 uppercase">VIP ACCESS</h2>
           <p className="text-neutral-500 font-medium leading-relaxed mb-10">
-            <span className="text-rose-600 font-bold">{toolName}</span> is a premium module. Watch a short sponsor message to unlock access for this session.
+            <span className="text-rose-600 font-bold">{toolName}</span> is a premium module. Watch a high-priority sponsor message to unlock access for this session.
           </p>
 
           <div className="grid grid-cols-2 gap-4 w-full mb-10">
@@ -59,14 +59,16 @@ export default function VipGate({ toolName, onUnlocked, onClose }: VipGateProps)
             className="w-full h-16 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl shadow-xl shadow-rose-600/20 flex items-center justify-center gap-4 group transition-all"
           >
             <PlayCircle size={24} className="group-hover:scale-110 transition-transform" />
-            <span className="text-sm font-black uppercase tracking-widest">Watch Ad to Unlock</span>
+            <span className="text-sm font-black uppercase tracking-widest">Watch & Unlock Tool</span>
           </button>
         </div>
 
         <AnimatePresence>
           {isWatching && (
-            <AdOverlay 
-              onComplete={() => {
+            <RewardedAd 
+              adUnitId="ca-app-pub-5861878697571557/6735085889"
+              type="rewarded"
+              onReward={() => {
                 setIsWatching(false);
                 onUnlocked();
               }}
