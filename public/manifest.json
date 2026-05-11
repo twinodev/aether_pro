@@ -1,10 +1,12 @@
 {
   "name": "Aether Pro",
   "short_name": "Aether",
-  "description": "Professional suite of privacy-first utility tools.",
+  "description": "Precision-engineered suite of privacy-first utility tools. Elite digital solutions for QR, OCR, PDF, and more.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "orientation": "portrait-primary",
+  "categories": ["productivity", "utilities", "business"],
+  "background_color": "#000000",
   "theme_color": "#000000",
   "icons": [
     {

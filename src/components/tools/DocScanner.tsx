@@ -314,15 +314,14 @@ export default function DocScanner() {
               <div className="p-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-lg">
                 <FileText size={24} />
               </div>
-              <h1 className="text-2xl font-bold tracking-tight">Intelligence Scanner</h1>
+              <h1 className="text-2xl font-bold tracking-tight">Scanner</h1>
             </div>
-            <p className="text-neutral-500 text-sm">Next-gen multi-page document capture and refinement.</p>
           </div>
           
           {pages.length > 0 && (
             <div className="flex items-center gap-4">
               <div className="flex flex-col items-end">
-                <span className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Captured Pages</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Pages</span>
                 <span className="text-lg font-black">{pages.length}</span>
               </div>
               <button 
@@ -331,7 +330,7 @@ export default function DocScanner() {
                 className="btn-primary px-6 h-12 flex items-center gap-2 shadow-xl shadow-rose-500/20"
               >
                 {isProcessing ? <RefreshCw size={18} className="animate-spin" /> : <Archive size={18} />}
-                Export PDF
+                Export
               </button>
             </div>
           )}
@@ -519,40 +518,26 @@ export default function DocScanner() {
           )}
         </div>
 
-        {/* Right Column: Actions */}
+        {/* Actions Column */}
         <div className="lg:col-span-3 space-y-6 font-sans">
           <section className="bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-[2.5rem] p-8 space-y-6 shadow-sm">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Operations</h3>
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Tools</h3>
             <div className="space-y-3">
               {isCropping ? (
                 <button onClick={applyCrop} className="w-full py-4 bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-transform flex items-center justify-center gap-2">
-                  <Check size={16} /> Confirm Crop
+                  <Check size={16} /> Confirm
                 </button>
               ) : (
                 <button onClick={() => setIsCapturing(true)} className="w-full py-4 bg-rose-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-rose-500/20">
-                  <Plus size={16} /> Add New Page
+                  <Plus size={16} /> Add Page
                 </button>
               )}
               {!isCropping && activePageIndex !== -1 && (
                 <button onClick={() => setIsCropping(true)} className="w-full py-4 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-200 transition-colors flex items-center justify-center gap-2">
-                  <Crop size={16} /> Refine Crop
+                  <Crop size={16} /> Refine
                 </button>
               )}
             </div>
-          </section>
-
-          <section className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-[2.5rem] p-8 space-y-4">
-             <div className="flex items-center gap-2 mb-2">
-                <ImageIcon size={16} className="text-neutral-400" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Scanner Info</span>
-             </div>
-             <p className="text-[10px] text-neutral-500 uppercase tracking-widest leading-relaxed">
-               This edge-ready scanner allows for high resolution multi-page document capture with real-time perspective correction and enhancement filters.
-             </p>
-             <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800">
-                <p className="text-[9px] font-bold text-neutral-400 uppercase">Pro Tip</p>
-                <p className="text-[10px] text-neutral-500">Hold the camera steady for 1 second before capturing to ensure focus.</p>
-             </div>
           </section>
         </div>
       </div>

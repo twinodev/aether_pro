@@ -31,8 +31,37 @@ const PREMIUM_VIEWS: string[] = ['phone-sorter', 'file-converter', 'image-compre
 
 type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'doc-scanner' | 'file-converter' | 'image-compressor' | 'ip-intelligence' | 'ticketing' | 'ocr-tool' | 'pdf-master' | 'privacy-guard' | 'dev-toolbox' | 'settings' | 'admin';
 
+const navItems: { id: View; label: string; icon: any; adminOnly?: boolean }[] = [
+  { id: 'home', label: 'Home', icon: LayoutGrid },
+  { id: 'admin', label: 'Admin', icon: Shield, adminOnly: true },
+  { id: 'ocr-tool', label: 'OCR', icon: FileText },
+  { id: 'pdf-master', label: 'PDFs', icon: FileText },
+  { id: 'privacy-guard', label: 'Guard', icon: Shield },
+  { id: 'ticketing', label: 'Tickets', icon: Tickets },
+  { id: 'ip-intelligence', label: 'IP Intel', icon: Globe },
+  { id: 'qr-builder', label: 'QR', icon: QrCode },
+  { id: 'barcode-builder', label: 'Barcode', icon: Barcode },
+  { id: 'scanner', label: 'Scanner', icon: Camera },
+  { id: 'doc-scanner', label: 'Scan', icon: FileText },
+  { id: 'file-converter', label: 'Convert', icon: Repeat },
+  { id: 'image-compressor', label: 'Shrink', icon: FileImage },
+  { id: 'converter', label: 'Units', icon: Repeat },
+  { id: 'vault', label: 'Vault', icon: Shield },
+  { id: 'phone-sorter', label: 'Sort', icon: Users },
+  { id: 'dev-toolbox', label: 'Dev', icon: Terminal },
+];
+
+const getInitialView = (): View => {
+  if (typeof window === 'undefined') return 'home';
+  const hash = window.location.hash.replace(/^#\/?/, '');
+  if (hash && navItems.some(item => item.id === hash)) {
+    return hash as View;
+  }
+  return 'home';
+};
+
 export default function App() {
-  const [currentView, setCurrentView] = useState<View>('home');
+  const [currentView, setCurrentView] = useState<View>(getInitialView());
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showVipGate, setShowVipGate] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -49,10 +78,10 @@ export default function App() {
     }
 
     const handleHashChange = () => {
-      const hash = window.location.hash.replace('#/', '');
+      const hash = window.location.hash.replace(/^#\/?/, '');
       if (hash && navItems.some(item => item.id === hash)) {
         setCurrentView(hash as View);
-      } else if (!hash) {
+      } else if (!hash || hash === '') {
         setCurrentView('home');
       }
     };
@@ -101,8 +130,8 @@ export default function App() {
           <img src="/logo.svg" alt="Aether Pro Logo" className="w-full h-full drop-shadow-[0_0_20px_rgba(59,130,246,0.3)]" />
         </motion.div>
         <div className="text-center space-y-2">
-          <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-900">Aether Core</h2>
-          <p className="text-[8px] font-bold text-neutral-300 uppercase tracking-widest">Synchronizing Identity</p>
+          <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-900">Aether</h2>
+          <p className="text-[8px] font-bold text-neutral-300 uppercase tracking-widest">Loading...</p>
         </div>
       </div>
     );
@@ -182,26 +211,6 @@ export default function App() {
       </>
     );
   };
-
-  const navItems = [
-    { id: 'home', label: 'Dashboard', icon: LayoutGrid },
-    { id: 'admin', label: 'Intelligence', icon: Shield, adminOnly: true },
-    { id: 'ocr-tool', label: 'OCR Vision', icon: FileText },
-    { id: 'pdf-master', label: 'PDF Master', icon: FileText },
-    { id: 'privacy-guard', label: 'Privacy Guard', icon: Shield },
-    { id: 'ticketing', label: 'Ticket Engine', icon: Tickets },
-    { id: 'ip-intelligence', label: 'IP Intelligence', icon: Globe },
-    { id: 'qr-builder', label: 'QR Builder', icon: QrCode },
-    { id: 'barcode-builder', label: 'Barcode Maker', icon: Barcode },
-    { id: 'scanner', label: 'Scanner', icon: Camera },
-    { id: 'doc-scanner', label: 'Doc Scanner', icon: FileText },
-    { id: 'file-converter', label: 'Converter', icon: Repeat },
-    { id: 'image-compressor', label: 'Shrink Engine', icon: FileImage },
-    { id: 'converter', label: 'Unit Conv', icon: Repeat },
-    { id: 'vault', label: 'Vault', icon: Shield },
-    { id: 'phone-sorter', label: 'Phone Sorter', icon: Users },
-    { id: 'dev-toolbox', label: 'Dev Toolbox', icon: Terminal },
-  ];
 
   const filteredNavItems = navItems.filter(item => {
     const matchesSearch = item.label.toLowerCase().includes(searchQuery.toLowerCase());
@@ -311,9 +320,6 @@ export default function App() {
               <h1 className="text-xs md:text-sm font-black uppercase tracking-widest text-neutral-900 dark:text-white truncate max-w-[120px] md:max-w-none">
                 {navItems.find(i => i.id === currentView)?.label || 'Aether Pro'}
               </h1>
-              {currentView !== 'home' && (
-                <span className="text-[8px] md:text-[10px] text-neutral-400 font-bold uppercase tracking-tighter">Tools / {currentView.split('-').join(' ')}</span>
-              )}
             </div>
           </div>
 
@@ -408,7 +414,7 @@ export default function App() {
              className={`flex flex-col items-center gap-1.5 transition-all ${currentView === 'home' ? 'text-rose-600' : 'text-neutral-400'}`}
            >
              <HomeIcon size={20} strokeWidth={currentView === 'home' ? 3 : 2} />
-             <span className="text-[8px] font-black uppercase tracking-widest">Base</span>
+             <span className="text-[8px] font-black uppercase tracking-widest">Home</span>
            </button>
            
            <button 
@@ -420,13 +426,13 @@ export default function App() {
              </div>
              <span className="text-[8px] font-black uppercase tracking-widest mt-1">Tools</span>
            </button>
-
+ 
            <button 
              onClick={() => navigateTo('settings')}
              className={`flex flex-col items-center gap-1.5 transition-all ${currentView === 'settings' ? 'text-rose-600' : 'text-neutral-400'}`}
            >
              <Settings size={20} strokeWidth={currentView === 'settings' ? 3 : 2} />
-             <span className="text-[8px] font-black uppercase tracking-widest">Config</span>
+             <span className="text-[8px] font-black uppercase tracking-widest">Settings</span>
            </button>
         </nav>
       </div>
@@ -542,9 +548,9 @@ export default function App() {
               <div className="w-16 h-16 bg-neutral-50 dark:bg-neutral-800 rounded-2xl flex items-center justify-center mb-8 mx-auto">
                 <LogOut className="text-rose-600" size={32} />
               </div>
-              <h3 className="text-2xl font-black text-center uppercase tracking-tighter mb-4 text-neutral-900 dark:text-white">Terminate Session?</h3>
+              <h3 className="text-2xl font-black text-center uppercase tracking-tighter mb-4 text-neutral-900 dark:text-white">Logout?</h3>
               <p className="text-neutral-500 dark:text-neutral-400 text-center font-medium text-sm mb-10 leading-relaxed">
-                You are about to disconnect your agent profile. Unsaved changes to regional tools may be reset.
+                Are you sure you want to log out of your session?
               </p>
               <div className="flex flex-col gap-3">
                 <button 
@@ -554,7 +560,7 @@ export default function App() {
                   }}
                   className="w-full h-14 bg-rose-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-700 transition-colors shadow-lg shadow-rose-600/20"
                 >
-                  Confirm Logout
+                  Logout
                 </button>
                 <button 
                   onClick={() => setShowLogoutConfirm(false)}

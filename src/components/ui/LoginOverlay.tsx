@@ -69,7 +69,7 @@ export default function LoginOverlay({ onClose }: { onClose?: () => void }) {
         <ShieldCheck size={32} className="md:w-10 md:h-10" />
       </motion.div>
       
-      <h2 className="text-2xl md:text-4xl font-black tracking-tighter text-neutral-900 mb-3 md:mb-4 uppercase">
+      <h2 className="text-2xl md:text-4xl font-black tracking-tighter text-neutral-900 dark:text-white mb-3 md:mb-4 uppercase">
         {authMode === 'login' ? 'Identity Required' : 'Join Aether Pro'}
       </h2>
       <p className="text-neutral-400 md:text-neutral-500 font-medium leading-relaxed mb-8 md:mb-10 text-sm md:text-lg">
@@ -120,7 +120,7 @@ export default function LoginOverlay({ onClose }: { onClose?: () => void }) {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               onSubmit={handleSubmit}
-              className="bg-white p-8 rounded-[2rem] border border-neutral-100 shadow-xl space-y-4 text-left"
+              className="bg-white dark:bg-neutral-900 p-8 rounded-[2rem] border border-neutral-100 dark:border-neutral-800 shadow-xl space-y-4 text-left"
             >
               <div className="flex items-center justify-between mb-4">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-neutral-400">
@@ -152,7 +152,7 @@ export default function LoginOverlay({ onClose }: { onClose?: () => void }) {
                       required
                       value={name}
                       onChange={e => setName(e.target.value)}
-                      className="w-full h-14 pl-12 pr-6 bg-neutral-50 border-none rounded-2xl text-sm font-medium focus:ring-2 ring-neutral-900 transition-all"
+                      className="w-full h-14 pl-12 pr-6 bg-neutral-50 dark:bg-neutral-800 border-none rounded-2xl text-sm font-medium focus:ring-2 ring-neutral-900 dark:ring-white transition-all dark:text-white"
                       placeholder="Agent Name"
                     />
                   </div>
@@ -168,7 +168,7 @@ export default function LoginOverlay({ onClose }: { onClose?: () => void }) {
                     required
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    className="w-full h-14 pl-12 pr-6 bg-neutral-50 border-none rounded-2xl text-sm font-medium focus:ring-2 ring-neutral-900 transition-all"
+                    className="w-full h-14 pl-12 pr-6 bg-neutral-50 dark:bg-neutral-800 border-none rounded-2xl text-sm font-medium focus:ring-2 ring-neutral-900 dark:ring-white transition-all dark:text-white"
                     placeholder="email@example.com"
                   />
                 </div>
@@ -208,7 +208,7 @@ export default function LoginOverlay({ onClose }: { onClose?: () => void }) {
                     required={authMode !== 'forgot'}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    className="w-full h-14 pl-12 pr-6 bg-neutral-50 border-none rounded-2xl text-sm font-medium focus:ring-2 ring-neutral-900 transition-all"
+                    className="w-full h-14 pl-12 pr-6 bg-neutral-50 dark:bg-neutral-800 border-none rounded-2xl text-sm font-medium focus:ring-2 ring-neutral-900 dark:ring-white transition-all dark:text-white"
                     placeholder="••••••••"
                   />
                 </div>
@@ -217,7 +217,7 @@ export default function LoginOverlay({ onClose }: { onClose?: () => void }) {
               <button 
                 type="submit"
                 disabled={loading}
-                className="w-full h-14 bg-neutral-900 text-white rounded-2xl flex items-center justify-center gap-3 hover:bg-neutral-800 transition-all mt-6 disabled:opacity-50"
+                className="w-full h-14 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-2xl flex items-center justify-center gap-3 hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-all mt-6 disabled:opacity-50"
               >
                 <span className="text-xs font-black uppercase tracking-widest">
                   {loading ? 'Processing...' : (authMode === 'login' ? 'Authenticate' : 'Establish Profile')}
@@ -242,11 +242,11 @@ export default function LoginOverlay({ onClose }: { onClose?: () => void }) {
           { icon: Sparkles, text: 'AI Genies' },
           { icon: Zap, text: 'Zero Latency' }
         ].map((item, i) => (
-          <div key={i} className="flex flex-col md:flex-row items-center md:items-center gap-2 md:gap-3 p-3 md:p-4 bg-white border border-neutral-100 rounded-xl md:rounded-2xl">
-            <div className="w-8 h-8 rounded-lg bg-neutral-50 flex items-center justify-center text-neutral-400">
+          <div key={i} className="flex flex-col md:flex-row items-center md:items-center gap-2 md:gap-3 p-3 md:p-4 bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-xl md:rounded-2xl">
+            <div className="w-8 h-8 rounded-lg bg-neutral-50 dark:bg-neutral-800 flex items-center justify-center text-neutral-400">
               <item.icon size={14} className="md:w-4" />
             </div>
-            <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-neutral-900">{item.text}</span>
+            <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-neutral-900 dark:text-white">{item.text}</span>
           </div>
         ))}
       </div>

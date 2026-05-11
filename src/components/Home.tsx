@@ -101,7 +101,7 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
     {
       id: 'qr-builder',
       title: 'QR Builder',
-      description: 'Custom codes for URLs, text, and wifi.',
+      description: 'Generate custom QR codes.',
       icon: <QrCode size={24} />,
       color: 'bg-indigo-600',
       category: 'identity'
@@ -109,7 +109,7 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
     {
       id: 'doc-scanner',
       title: 'Doc Scanner',
-      description: 'Capture & enhance documents in seconds.',
+      description: 'Capture and enhance docs.',
       icon: <FileText size={24} />,
       color: 'bg-emerald-600',
       category: 'visual'
@@ -117,7 +117,7 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
     {
       id: 'file-converter',
       title: 'File Converter',
-      description: 'Local media conversion for images & video.',
+      description: 'Convert images and video.',
       icon: <Repeat size={24} />,
       color: 'bg-rose-600',
       vip: true,
@@ -126,7 +126,7 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
     {
       id: 'image-compressor',
       title: 'Shrink Engine',
-      description: 'Optimize and compress image assets locally.',
+      description: 'Compress image assets.',
       icon: <FileImage size={24} />,
       color: 'bg-neutral-800',
       vip: true,
@@ -135,7 +135,7 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
     {
       id: 'scanner',
       title: 'Scan Engine',
-      description: 'Instant decoding for any code format.',
+      description: 'Decode any code format.',
       icon: <Camera size={24} />,
       color: 'bg-amber-600',
       category: 'visual'
@@ -143,7 +143,7 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
     {
       id: 'barcode-builder',
       title: 'Barcode Maker',
-      description: 'Professional tracking code generation.',
+      description: 'Generate tracking codes.',
       icon: <BarcodeIcon size={24} />,
       color: 'bg-sky-600',
       category: 'identity'
@@ -151,15 +151,15 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
     {
       id: 'converter',
       title: 'Smart Units',
-      description: 'Swift conversions for any global unit.',
+      description: 'Global unit conversion.',
       icon: <Repeat size={24} />,
       color: 'bg-violet-600',
       category: 'file'
     },
     {
       id: 'vault',
-      title: 'Password Vault',
-      description: 'Generate high-entropy secure keys.',
+      title: 'Vault',
+      description: 'Secure key generation.',
       icon: <Shield size={24} />,
       color: 'bg-neutral-800',
       category: 'data'
@@ -167,7 +167,7 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
     {
       id: 'phone-sorter',
       title: 'Data Sorter',
-      description: 'Bulk process phone numbers by network.',
+      description: 'Process network data.',
       icon: <Users size={24} />,
       color: 'bg-teal-600',
       vip: true,
@@ -175,8 +175,8 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
     },
     {
       id: 'ip-intelligence',
-      title: 'IP Intelligence',
-      description: 'Extract regional signals and network data.',
+      title: 'IP Intel',
+      description: 'Network signal extraction.',
       icon: <Globe size={24} />,
       color: 'bg-indigo-600',
       vip: true,
@@ -185,8 +185,8 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
     },
     {
       id: 'ticketing',
-      title: 'Ticket Engine',
-      description: 'Design and deploy secure event tokens.',
+      title: 'Tickets',
+      description: 'Deploy secure tokens.',
       icon: <Tickets size={24} />,
       color: 'bg-indigo-600',
       vip: true,
@@ -196,7 +196,7 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
     {
       id: 'pdf-master',
       title: 'PDF Master',
-      description: 'Merge, split, and edit PDF metadata seamlessly.',
+      description: 'Edit and merge PDF files.',
       icon: <FileText size={24} />,
       color: 'bg-red-600',
       vip: true,
@@ -206,15 +206,15 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
     {
       id: 'privacy-guard',
       title: 'Privacy Guard',
-      description: 'Strip EXIF data and anonymize image assets.',
+      description: 'Strip EXIF and metadata.',
       icon: <Shield size={24} />,
       color: 'bg-emerald-600',
       category: 'visual'
     },
     {
       id: 'dev-toolbox',
-      title: 'Dev Toolbox',
-      description: 'JSON, Base64, and JWT utilities for engineers.',
+      title: 'Dev Box',
+      description: 'JSON & JWT utilities.',
       icon: <Terminal size={24} />,
       color: 'bg-neutral-900',
       featured: true,
@@ -247,14 +247,13 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
             <span className="text-[#e2e2e2] dark:text-neutral-800">PRO.</span>
           </h1>
           
-          {/* Hero Search */}
-          <div className="mt-8 relative max-w-xl group">
+           <div className="mt-8 relative max-w-xl group">
              <div className="absolute left-6 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-neutral-900 dark:group-focus-within:text-white transition-colors">
                 <Users size={20} />
              </div>
              <input 
                type="text"
-               placeholder="Search elite tools..."
+               placeholder="Search tools..."
                value={searchQuery}
                onChange={(e) => setSearchQuery(e.target.value)}
                className="w-full h-16 bg-white dark:bg-neutral-900 border-2 border-neutral-100 dark:border-neutral-800 rounded-3xl pl-16 pr-6 text-sm font-bold uppercase tracking-widest focus:outline-none focus:border-neutral-900 dark:focus:border-white focus:ring-8 focus:ring-neutral-900/5 dark:focus:ring-white/5 transition-all shadow-xl shadow-black/5 dark:shadow-white/5 text-neutral-900 dark:text-white"
@@ -282,8 +281,7 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
           </div>
 
           <p className="mt-8 max-w-xl text-neutral-400 dark:text-neutral-500 text-lg md:text-xl font-medium leading-relaxed">
-            A zero-compromise selection of essential digital tools. 
-            Built for professionals who value speed, privacy, and flawless design.
+            Speed. Privacy. Precision. Essential toolkit for professionals.
           </p>
         </div>
 
@@ -324,12 +322,12 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
             <div className="bg-rose-600 rounded-[2rem] p-6 shadow-xl shadow-rose-600/20 flex items-center justify-between group overflow-hidden relative">
                <div className="relative z-10">
                   <span className="text-[8px] font-black text-rose-200 uppercase tracking-[0.4em] block mb-2">PROMOTION</span>
-                  <h5 className="text-xs font-bold text-white mb-1 uppercase tracking-tight">Unlock All Tools for 1 Hour</h5>
+                  <h5 className="text-xs font-bold text-white mb-1 uppercase tracking-tight">Unlock all tools</h5>
                   <button 
                     onClick={handleUnlockAll}
                     className="mt-3 text-[10px] font-black uppercase tracking-widest bg-white text-rose-600 px-4 py-2 rounded-xl flex items-center gap-2 hover:scale-105 transition-transform"
                   >
-                    <PlayCircle size={14} /> Watch Sponsor Ad
+                    <PlayCircle size={14} /> Unlock via Ad
                   </button>
                </div>
                <div className="w-20 h-20 bg-white/10 rounded-2xl flex items-center justify-center text-white/20 rotate-6 group-hover:rotate-12 transition-transform">
@@ -381,27 +379,21 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
       </motion.div>
       
       <footer className="mt-32 pt-16 border-t border-neutral-100 dark:border-neutral-800 grid grid-cols-2 lg:grid-cols-4 gap-12 text-neutral-400 dark:text-neutral-500 mb-12">
-        <div className="space-y-4">
+        <div className="space-y-2">
             <h4 className="text-[10px] font-black uppercase tracking-[0.3em]">Privacy</h4>
-            <div className="w-12 h-1 px-1 flex bg-neutral-100 dark:bg-neutral-800 rounded-full">
-              <div className="w-full h-full bg-neutral-900 dark:bg-white rounded-full" />
-            </div>
-            <p className="text-xs leading-relaxed font-medium">All processing happens directly on your device. Zero cloud dependency.</p>
+            <p className="text-xs leading-relaxed font-medium">Local processing. No cloud.</p>
         </div>
-        <div className="space-y-4">
+        <div className="space-y-2">
             <h4 className="text-[10px] font-black uppercase tracking-[0.3em]">Security</h4>
-            <div className="w-12 h-1 px-1 flex bg-neutral-100 dark:bg-neutral-800 rounded-full">
-              <div className="w-1/2 h-full bg-neutral-900 dark:bg-white rounded-full" />
-            </div>
-            <p className="text-xs leading-relaxed font-medium">Built with secure-by-design principles and modern web standards.</p>
+            <p className="text-xs leading-relaxed font-medium">Secure-by-design standards.</p>
         </div>
-        <div className="space-y-4">
+        <div className="space-y-2">
             <h4 className="text-[10px] font-black uppercase tracking-[0.3em]">Build</h4>
-            <p className="text-xs leading-relaxed font-medium">v1.8.0 Premium Toolset<br />Compiled May 2026</p>
+            <p className="text-xs leading-relaxed font-medium">v1.8.0.26</p>
         </div>
-        <div className="space-y-4">
-            <h4 className="text-[10px] font-black uppercase tracking-[0.3em]">Credits</h4>
-            <p className="text-xs leading-relaxed font-medium">Designed with precision for the modern web.</p>
+        <div className="space-y-2">
+            <h4 className="text-[10px] font-black uppercase tracking-[0.3em]">Status</h4>
+            <p className="text-xs leading-relaxed font-medium">All systems operational.</p>
         </div>
       </footer>
 
