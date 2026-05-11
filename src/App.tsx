@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, LayoutGrid, Settings, HelpCircle, Menu, X, QrCode, Barcode, Camera, Sparkles, Repeat, Shield, Users, FileText, Mic, LogOut, FileImage, Globe, Tickets, Home as HomeIcon, Search as SearchIcon, Terminal } from 'lucide-react';
+import { ChevronLeft, LayoutGrid, Settings, HelpCircle, Menu, X, QrCode, Barcode, Camera, Sparkles, Repeat, Shield, Users, FileText, Mic, LogOut, FileImage, Globe, Tickets, Home as HomeIcon, Search as SearchIcon, Terminal, Brackets } from 'lucide-react';
 import Home from './components/Home.tsx';
 import QRBuilder from './components/tools/QRBuilder.tsx';
 import BarcodeBuilder from './components/tools/BarcodeBuilder.tsx';
@@ -11,6 +11,7 @@ import PhoneSorter from './components/tools/PhoneSorter.tsx';
 import DocScanner from './components/tools/DocScanner.tsx';
 import FileConverter from './components/tools/FileConverter.tsx';
 import ImageCompressor from './components/tools/ImageCompressor.tsx';
+import StringLab from './components/tools/StringLab.tsx';
 import IpIntelligence from './components/tools/IpIntelligence.tsx';
 import TicketingTool from './components/tools/TicketingTool.tsx';
 import OcrTool from './components/tools/OcrTool.tsx';
@@ -26,9 +27,9 @@ import VipGate from './components/ui/VipGate.tsx';
 import BroadcastBanner from './components/ui/BroadcastBanner.tsx';
 import { User as UserIcon } from 'lucide-react';
 
-const PREMIUM_VIEWS: string[] = ['phone-sorter', 'file-converter', 'image-compressor', 'ip-intelligence', 'ticketing', 'pdf-master'];
+const PREMIUM_VIEWS: string[] = ['phone-sorter', 'file-converter', 'image-compressor', 'ip-intelligence', 'ticketing', 'pdf-master', 'string-lab'];
 
-type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'doc-scanner' | 'file-converter' | 'image-compressor' | 'ip-intelligence' | 'ticketing' | 'ocr-tool' | 'pdf-master' | 'privacy-guard' | 'dev-toolbox' | 'settings' | 'admin';
+type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'doc-scanner' | 'file-converter' | 'image-compressor' | 'ip-intelligence' | 'ticketing' | 'ocr-tool' | 'pdf-master' | 'privacy-guard' | 'dev-toolbox' | 'string-lab' | 'settings' | 'admin';
 
 const navItems: { id: View; label: string; icon: any; adminOnly?: boolean }[] = [
   { id: 'home', label: 'Home', icon: LayoutGrid },
@@ -40,6 +41,7 @@ const navItems: { id: View; label: string; icon: any; adminOnly?: boolean }[] = 
   { id: 'ip-intelligence', label: 'IP Intel', icon: Globe },
   { id: 'qr-builder', label: 'QR', icon: QrCode },
   { id: 'barcode-builder', label: 'Barcode', icon: Barcode },
+  { id: 'string-lab', label: 'Lab', icon: Brackets },
   { id: 'scanner', label: 'Scanner', icon: Camera },
   { id: 'doc-scanner', label: 'Scan', icon: FileText },
   { id: 'file-converter', label: 'Convert', icon: Repeat },
@@ -187,6 +189,8 @@ export default function App() {
               return <FileConverter />;
             case 'image-compressor':
               return <ImageCompressor />;
+            case 'string-lab':
+              return <StringLab />;
             case 'ip-intelligence':
               return <IpIntelligence />;
             case 'ticketing':

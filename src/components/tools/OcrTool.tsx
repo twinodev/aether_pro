@@ -11,8 +11,34 @@ export default function OcrTool() {
   const [progress, setProgress] = useState(0);
   const [copied, setCopied] = useState(false);
   const [language, setLanguage] = useState('eng');
+  const [isAiPolishing, setIsAiPolishing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const workerRef = useRef<any>(null);
+
+  const aiPolish = async () => {
+    if (!text || isAiPolishing) return;
+    setIsAiPolishing(true);
+    try {
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: 'You are a professional editor. Fix common OCR mistakes in the following text. Maintain original formatting but correct typos, grammar, and strange characters. Output ONLY the corrected text.' },
+            { role: 'user', content: text }
+          ]
+        })
+      });
+      const data = await response.json();
+      if (data.choices?.[0]?.message?.content) {
+        setText(data.choices[0].message.content);
+      }
+    } catch (err) {
+      console.error('AI Polish Error:', err);
+    } finally {
+      setIsAiPolishing(false);
+    }
+  };
 
   useEffect(() => {
     // Kill existing worker if it exists (e.g. language change)
@@ -194,6 +220,16 @@ export default function OcrTool() {
                 >
                   <Download size={18} />
                 </button>
+                {text && (
+                  <button 
+                    onClick={aiPolish}
+                    disabled={isAiPolishing}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-neutral-900 hover:bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
+                  >
+                    {isAiPolishing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                    {isAiPolishing ? 'Refining...' : 'AI Polish'}
+                  </button>
+                )}
               </div>
             </div>
             

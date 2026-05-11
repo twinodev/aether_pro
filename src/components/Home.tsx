@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { QrCode, ArrowRight, Barcode as BarcodeIcon, Camera, Repeat, Shield, Users, FileText, Clock, Sparkles, FileImage, Check, Globe, Tickets, PlayCircle, Link as LinkIcon, Terminal } from 'lucide-react';
+import { QrCode, ArrowRight, Barcode as BarcodeIcon, Camera, Repeat, Shield, Users, FileText, Clock, Sparkles, FileImage, Check, Globe, Tickets, PlayCircle, Link as LinkIcon, Terminal, Brackets } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
 import { subscribeToRecentActivities, Activity } from '../services/activityService';
@@ -97,6 +97,16 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
   ];
 
   const tools = [
+    {
+      id: 'string-lab',
+      title: 'String Lab',
+      description: 'JSON/Base64/URL transformation suites.',
+      icon: <Brackets size={24} />,
+      color: 'bg-neutral-900',
+      featured: true,
+      category: 'data',
+      vip: true
+    },
     {
       id: 'qr-builder',
       title: 'QR Builder',
@@ -347,7 +357,7 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
       >
         {filteredTools.map((tool) => (
           <div key={tool.id} className={`
-             ${activeCategory === 'all' && (tool.id === 'qr-builder' || tool.id === 'doc-scanner') ? 'lg:col-span-2 lg:row-span-1' : ''}
+             ${activeCategory === 'all' && (tool.id === 'qr-builder' || tool.id === 'doc-scanner' || tool.id === 'string-lab') ? 'lg:col-span-2 lg:row-span-1' : ''}
              ${activeCategory === 'all' && tool.id === 'ip-intelligence' ? 'lg:col-span-2 lg:row-span-2' : ''}
              relative
           `}>
