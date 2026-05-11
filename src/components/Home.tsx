@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { QrCode, ArrowRight, Barcode as BarcodeIcon, Camera, Repeat, Shield, Users, FileText, Clock, Sparkles, FileImage, Check, Globe, Tickets, PlayCircle, Link as LinkIcon, Terminal, Brackets } from 'lucide-react';
+import { QrCode, ArrowRight, Barcode as BarcodeIcon, Camera, Repeat, Shield, Users, FileText, Clock, Sparkles, Check, Tickets, Zap, Receipt, Smartphone, Link as LinkIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
 import { subscribeToRecentActivities, Activity } from '../services/activityService';
@@ -89,145 +89,108 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
   };
 
   const categories = [
-    { id: 'all', name: 'All Assets', icon: <Sparkles size={14} /> },
-    { id: 'visual', name: 'Visual Intelligence', icon: <Camera size={14} /> },
-    { id: 'identity', name: 'Identity Systems', icon: <QrCode size={14} /> },
-    { id: 'file', name: 'File Engineering', icon: <FileText size={14} /> },
-    { id: 'data', name: 'Data Protocols', icon: <Terminal size={14} /> },
+    { id: 'all', name: 'All Suites', icon: <Sparkles size={14} /> },
+    { id: 'finance', name: 'Financial', icon: <Smartphone size={14} /> },
+    { id: 'data', name: 'Customer Intelligence', icon: <Users size={14} /> },
+    { id: 'ops', name: 'Operations', icon: <Zap size={14} /> },
   ];
 
   const tools = [
     {
-      id: 'string-lab',
-      title: 'String Lab',
-      description: 'JSON/Base64/URL transformation suites.',
-      icon: <Brackets size={24} />,
-      color: 'bg-neutral-900',
+      id: 'momo-intelligence',
+      title: 'MoMo Intelligence',
+      description: 'Multi-network (MPESA/MTN/Airtel) fee protocol.',
+      icon: <Smartphone size={24} />,
+      color: 'bg-emerald-500',
       featured: true,
+      category: 'finance',
+      vip: true
+    },
+    {
+      id: 'receipt-lab',
+      title: 'Receipt Lab',
+      description: 'Digital POS for East African retail.',
+      icon: <Receipt size={24} />,
+      color: 'bg-indigo-600',
+      featured: true,
+      category: 'finance',
+      vip: true
+    },
+    {
+      id: 'phone-sorter',
+      title: 'Numbers Intelligence',
+      description: 'Clean & sort contact lists for marketing.',
+      icon: <Users size={24} />,
+      color: 'bg-emerald-600',
       category: 'data',
       vip: true
     },
     {
-      id: 'qr-builder',
-      title: 'QR Builder',
-      description: 'Generate custom QR codes.',
-      icon: <QrCode size={24} />,
-      color: 'bg-indigo-600',
-      category: 'identity'
-    },
-    {
-      id: 'doc-scanner',
-      title: 'Doc Scanner',
-      description: 'Capture and enhance docs.',
-      icon: <FileText size={24} />,
-      color: 'bg-emerald-600',
-      category: 'visual'
-    },
-    {
-      id: 'file-converter',
-      title: 'File Converter',
-      description: 'Convert images and video.',
-      icon: <Repeat size={24} />,
-      color: 'bg-rose-600',
-      vip: true,
-      category: 'file'
-    },
-    {
-      id: 'image-compressor',
-      title: 'Shrink Engine',
-      description: 'Compress image assets.',
-      icon: <FileImage size={24} />,
-      color: 'bg-neutral-800',
-      vip: true,
-      category: 'visual'
-    },
-    {
-      id: 'scanner',
-      title: 'Scan Engine',
-      description: 'Decode any code format.',
-      icon: <Camera size={24} />,
-      color: 'bg-amber-600',
-      category: 'visual'
-    },
-    {
-      id: 'barcode-builder',
-      title: 'Barcode Maker',
-      description: 'Generate tracking codes.',
-      icon: <BarcodeIcon size={24} />,
-      color: 'bg-sky-600',
-      category: 'identity'
-    },
-    {
-      id: 'converter',
-      title: 'Smart Units',
-      description: 'Global unit conversion.',
-      icon: <Repeat size={24} />,
-      color: 'bg-violet-600',
-      category: 'file'
-    },
-    {
-      id: 'vault',
-      title: 'Vault',
-      description: 'Secure key generation.',
-      icon: <Shield size={24} />,
-      color: 'bg-neutral-800',
-      category: 'data'
-    },
-    {
-      id: 'phone-sorter',
-      title: 'Data Sorter',
-      description: 'Process network data.',
-      icon: <Users size={24} />,
-      color: 'bg-teal-600',
-      vip: true,
-      category: 'data'
-    },
-    {
-      id: 'ip-intelligence',
-      title: 'IP Intel',
-      description: 'Network signal extraction.',
-      icon: <Globe size={24} />,
-      color: 'bg-indigo-600',
-      vip: true,
+      id: 'luku-predictor',
+      title: 'Luku Energy Predictor',
+      description: 'Forecast prepaid power consumption.',
+      icon: <Zap size={24} />,
+      color: 'bg-yellow-400',
       featured: true,
-      category: 'data'
+      category: 'ops',
+      vip: true
+    },
+    {
+      id: 'ocr-tool',
+      title: 'Smart OCR',
+      description: 'Digitize stock lists and receipts.',
+      icon: <FileText size={24} />,
+      color: 'bg-amber-600',
+      category: 'ops'
     },
     {
       id: 'ticketing',
-      title: 'Tickets',
-      description: 'Deploy secure tokens.',
+      title: 'Pass Terminal',
+      description: 'Deploy secure digital tokens.',
       icon: <Tickets size={24} />,
-      color: 'bg-indigo-600',
-      vip: true,
-      featured: true,
-      category: 'identity'
+      color: 'bg-rose-500',
+      category: 'ops',
+      vip: true
     },
     {
-      id: 'pdf-master',
-      title: 'PDF Master',
-      description: 'Edit and merge PDF files.',
-      icon: <FileText size={24} />,
-      color: 'bg-red-600',
-      vip: true,
-      featured: true,
-      category: 'file'
+      id: 'qr-builder',
+      title: 'Brand QR Protocol',
+      description: 'Custom codes for payments/menus.',
+      icon: <QrCode size={24} />,
+      color: 'bg-indigo-500',
+      category: 'ops'
     },
     {
-      id: 'privacy-guard',
-      title: 'Privacy Guard',
-      description: 'Strip EXIF and metadata.',
-      icon: <Shield size={24} />,
-      color: 'bg-emerald-600',
-      category: 'visual'
-    },
-    {
-      id: 'dev-toolbox',
-      title: 'Dev Box',
-      description: 'JSON & JWT utilities.',
-      icon: <Terminal size={24} />,
+      id: 'barcode-builder',
+      title: 'Inventory Labels',
+      description: 'Generate standard retail barcodes.',
+      icon: <BarcodeIcon size={24} />,
       color: 'bg-neutral-900',
-      featured: true,
-      category: 'data'
+      category: 'ops'
+    },
+    {
+      id: 'scanner',
+      title: 'Universal Scanner',
+      description: 'Read stock levels and payment codes.',
+      icon: <Camera size={24} />,
+      color: 'bg-cyan-600',
+      category: 'ops'
+    },
+    {
+      id: 'converter',
+      title: 'Trade Converter',
+      description: 'Standard weights & metrics protocol.',
+      icon: <Repeat size={24} />,
+      color: 'bg-orange-500',
+      category: 'ops'
+    },
+    {
+      id: 'vault',
+      title: 'Security Vault',
+      description: 'Secure enterprise key generation.',
+      icon: <Shield size={24} />,
+      color: 'bg-neutral-800',
+      category: 'ops'
     }
   ];
 
@@ -357,8 +320,8 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
       >
         {filteredTools.map((tool) => (
           <div key={tool.id} className={`
-             ${activeCategory === 'all' && (tool.id === 'qr-builder' || tool.id === 'doc-scanner' || tool.id === 'string-lab') ? 'lg:col-span-2 lg:row-span-1' : ''}
-             ${activeCategory === 'all' && tool.id === 'ip-intelligence' ? 'lg:col-span-2 lg:row-span-2' : ''}
+             ${activeCategory === 'all' && (tool.id === 'momo-intelligence' || tool.id === 'receipt-lab') ? 'lg:col-span-2 lg:row-span-1' : ''}
+             ${activeCategory === 'all' && tool.id === 'phone-sorter' ? 'lg:col-span-2 lg:row-span-2' : ''}
              relative
           `}>
             <ToolCard 

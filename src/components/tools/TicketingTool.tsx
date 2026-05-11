@@ -14,6 +14,7 @@ import { db } from '../../lib/firebase';
 export default function TicketingTool() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [success, setSuccess] = useState(false);
   const [activeMobileTab, setActiveMobileTab] = useState<'edit' | 'preview'>('edit');
   const [expandedSection, setExpandedSection] = useState<string | null>('event');
@@ -27,7 +28,7 @@ export default function TicketingTool() {
   const [customerName, setCustomerName] = useState('JOEL MUKASA');
   
   const [color, setColor] = useState('#6366f1');
-  const [layout, setLayout] = useState<'standard' | 'minimal' | 'modern' | 'vintage' | 'neon' | 'brutalist' | 'elegant' | 'slim' | 'overlay'>('modern');
+  const [layout, setLayout] = useState<'standard' | 'minimal' | 'modern' | 'vintage' | 'neon' | 'brutalist' | 'elegant' | 'slim' | 'overlay' | 'bento' | 'industrial'>('bento');
   const [orientation, setOrientation] = useState<'horizontal' | 'vertical'>('horizontal');
   const [useBackgroundImage, setUseBackgroundImage] = useState(true);
   const [extractColor, setExtractColor] = useState(true);
@@ -113,6 +114,11 @@ export default function TicketingTool() {
 
   const handleSaveAndPrint = async () => {
     setLoading(true);
+    setLoadingProgress(0);
+    
+    // Tiny delay to allow React to paint the loading state
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
     const ticketId = generateTicketId();
     
     const design: TicketDesign = {
@@ -143,83 +149,89 @@ export default function TicketingTool() {
       createdAt: null,
     };
 
-    // Parallelize Firestore write and PDF generation to reduce delays
-    const deployPromise = createTicket(ticketData);
-    
-    // Generate PDF
-    const doc = new jsPDF({
-      orientation: orientation === 'horizontal' ? 'l' : 'p',
-      unit: 'mm',
-      format: [139.7, 50.8] // 5.5" x 2"
+    // Firebase sync in background - don't block the PDF generation
+    createTicket(ticketData).catch(err => {
+      console.error('Relational sync delayed or failed', err);
     });
+    
+    try {
+      setLoadingProgress(30);
+      // Generate PDF
+      const doc = new jsPDF({
+        orientation: orientation === 'horizontal' ? 'l' : 'p',
+        unit: 'mm',
+        format: [139.7, 50.8] // 5.5" x 2"
+      });
 
-    // Handle Featured/Overlay Image for PDF
-    if (featuredImage) {
-      try {
-        // Use FAST compression
+      // Handle Featured/Overlay Image for PDF
+      if (featuredImage) {
+        // Use FAST compression to reduce generation lag
         doc.addImage(featuredImage, 'JPEG', 0, 0, 139.7, 50.8, undefined, 'FAST');
-      } catch (e) {
-        console.error('Error adding image to PDF', e);
       }
-    }
 
-    const qrCanvas = ticketRef.current?.querySelector('canvas');
-    if (qrCanvas) {
-      const qrDataUrl = qrCanvas.toDataURL('image/png', 0.8); // Slight compression
-      
-      if (layout === 'overlay') {
-        const x = codePosition.includes('right') ? 115 : 5;
-        const y = codePosition.includes('bottom') ? 35 : 5;
+      setLoadingProgress(60);
+      const qrCanvas = ticketRef.current?.querySelector('canvas');
+      if (qrCanvas) {
+        // Generate a slightly smaller data URL for performance
+        const qrDataUrl = qrCanvas.toDataURL('image/png');
         
-        doc.setFillColor(255, 255, 255);
-        doc.rect(x - 1, y - 1, 22, 22, 'F');
-        doc.addImage(qrDataUrl, 'PNG', x, y, 20, 20, undefined, 'FAST');
-        
-        doc.setFontSize(6);
-        doc.setTextColor(150, 150, 150);
-        doc.text(ticketId, x, y + 23);
-      } else {
-        // Standard layout PDF logic
-        doc.setFillColor(color);
-        if (orientation === 'horizontal') {
-          doc.rect(0, 0, 10, 50.8, 'F');
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(18 * fontSize);
-          doc.setTextColor(40, 40, 40);
-          doc.text(eventTitle.toUpperCase(), 15, 15);
-          doc.setFontSize(12 * fontSize);
-          doc.text(`UGX ${price}`, 15, 45);
-          doc.setFontSize(10 * fontSize);
-          doc.text(customerName.toUpperCase(), 15, 30);
+        if (layout === 'overlay') {
+          const x = codePosition.includes('right') ? 115 : 5;
+          const y = codePosition.includes('bottom') ? 35 : 5;
           
-          doc.addImage(qrDataUrl, 'PNG', 115, 10, 20, 20, undefined, 'FAST');
-          doc.setFontSize(6 * fontSize);
-          doc.text(ticketId, 115, 32);
+          doc.setFillColor(255, 255, 255);
+          doc.rect(x - 1, y - 1, 22, 22, 'F');
+          doc.addImage(qrDataUrl, 'PNG', x, y, 20, 20, undefined, 'FAST');
+          
+          doc.setFontSize(6);
+          doc.setTextColor(150, 150, 150);
+          doc.text(ticketId, x, y + 23);
         } else {
-          doc.rect(0, 0, 50.8, 10, 'F');
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(16 * fontSize);
-          doc.setTextColor(40, 40, 40);
-          doc.text(eventTitle.toUpperCase(), 5, 25);
-          
-          doc.addImage(qrDataUrl, 'PNG', 15, 10, 20, 20, undefined, 'FAST');
-          doc.setFontSize(6 * fontSize);
-          doc.text(ticketId, 15, 32);
-          
-          doc.setFontSize(10 * fontSize);
-          doc.text(customerName.toUpperCase(), 5, 40);
-          doc.setFontSize(12 * fontSize);
-          doc.text(`UGX ${price}`, 5, 48);
+          // Standard layout PDF logic
+          doc.setFillColor(color);
+          if (orientation === 'horizontal') {
+            doc.rect(0, 0, 10, 50.8, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(18 * fontSize);
+            doc.setTextColor(40, 40, 40);
+            doc.text(eventTitle.toUpperCase(), 15, 15);
+            doc.setFontSize(12 * fontSize);
+            doc.text(`UGX ${price}`, 15, 45);
+            doc.setFontSize(10 * fontSize);
+            doc.text(customerName.toUpperCase(), 15, 30);
+            
+            doc.addImage(qrDataUrl, 'PNG', 115, 10, 20, 20, undefined, 'FAST');
+            doc.setFontSize(6 * fontSize);
+            doc.text(ticketId, 115, 32);
+          } else {
+            doc.rect(0, 0, 50.8, 10, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(16 * fontSize);
+            doc.setTextColor(40, 40, 40);
+            doc.text(eventTitle.toUpperCase(), 5, 25);
+            
+            doc.addImage(qrDataUrl, 'PNG', 15, 10, 20, 20, undefined, 'FAST');
+            doc.setFontSize(6 * fontSize);
+            doc.text(ticketId, 15, 32);
+            
+            doc.setFontSize(10 * fontSize);
+            doc.text(customerName.toUpperCase(), 5, 40);
+            doc.setFontSize(12 * fontSize);
+            doc.text(`UGX ${price}`, 5, 48);
+          }
         }
       }
+      
+      setLoadingProgress(100);
+      doc.save(`ticket-${ticketId}.pdf`);
+    } catch (err) {
+      console.error('Critical generation failure', err);
+    } finally {
+      setLoading(false);
+      setLoadingProgress(0);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
     }
-    
-    // Wait for deployment to finish before marking success
-    await deployPromise;
-    doc.save(`ticket-${ticketId}.pdf`);
-    setLoading(false);
-    setSuccess(true);
-    setTimeout(() => setSuccess(false), 3000);
   };
 
   const handleExportImage = () => {
@@ -246,6 +258,9 @@ export default function TicketingTool() {
     if (names.length === 0) return;
 
     setLoading(true);
+    setLoadingProgress(0);
+    
+    // Chunk processing for responsive UI
     const ticketsToCreate: Ticket[] = [];
     
     for (const name of names) {
@@ -260,11 +275,18 @@ export default function TicketingTool() {
       ticketsToCreate.push(ticketData);
     }
     
-    await createTicketsBulk(ticketsToCreate);
-    
-    setLoading(false);
-    setSuccess(true);
-    setTimeout(() => setSuccess(false), 5000);
+    try {
+      await createTicketsBulk(ticketsToCreate, (progress) => {
+        setLoadingProgress(progress);
+      });
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 5000);
+    } catch (err) {
+      console.error('Bulk generation failed', err);
+    } finally {
+      setLoading(false);
+      setLoadingProgress(0);
+    }
   };
 
   const handleSaveTemplate = async () => {
@@ -303,15 +325,17 @@ export default function TicketingTool() {
   };
 
   const layouts = [
+    { id: 'bento', label: 'Bento Grid' },
+    { id: 'industrial', label: 'Industrial' },
+    { id: 'modern', label: 'Modern' },
     { id: 'standard', label: 'Standard' },
     { id: 'minimal', label: 'Minimalist' },
-    { id: 'modern', label: 'Ultra Modern' },
-    { id: 'vintage', label: 'Retro Vintage' },
-    { id: 'neon', label: 'Neon Cyber' },
-    { id: 'brutalist', label: 'Raw Brutalist' },
-    { id: 'elegant', label: 'Gold Elegant' },
-    { id: 'slim', label: 'Slim Compact' },
-    { id: 'overlay', label: 'Pre-designed Overlay' },
+    { id: 'vintage', label: 'Vintage' },
+    { id: 'neon', label: 'Neon' },
+    { id: 'brutalist', label: 'Brutalist' },
+    { id: 'elegant', label: 'Elegant' },
+    { id: 'slim', label: 'Slim' },
+    { id: 'overlay', label: 'Overlay' },
   ];
 
   return (
@@ -328,8 +352,21 @@ export default function TicketingTool() {
           -webkit-print-color-adjust: exact;
         }
         .perspective-1000 {
-          perspective: none !important;
-          transform: none !important;
+          perspective: 1000px;
+        }
+        .holo-shimmer {
+          background: linear-gradient(
+            45deg,
+            rgba(255, 255, 255, 0) 0%,
+            rgba(255, 255, 255, 0.4) 50%,
+            rgba(255, 255, 255, 0) 100%
+          );
+          background-size: 200% 200%;
+          animation: shimmer 3s infinite linear;
+        }
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
         }
         .no-print {
           display: none !important;
@@ -352,17 +389,18 @@ export default function TicketingTool() {
         <div className="flex flex-wrap items-center gap-2">
            <button 
               onClick={() => setShowTemplates(!showTemplates)}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-white border border-neutral-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-indigo-500 hover:text-indigo-600 transition-all shadow-sm"
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 border rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm
+                ${showTemplates ? 'bg-indigo-600 text-white border-indigo-600 shadow-indigo-200' : 'bg-white border-neutral-200 text-neutral-600 hover:border-indigo-500 hover:text-indigo-600'}`}
            >
               <FolderHeart size={16} />
               <span>Design Vault ({templates.length})</span>
            </button>
            <button 
               onClick={handleSaveTemplate}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
            >
               <Save size={16} />
-              <span>Save Template</span>
+              <span>Save Prototype</span>
            </button>
         </div>
       </header>
@@ -816,10 +854,24 @@ export default function TicketingTool() {
              <button 
                 onClick={bulkMode ? handleBulkGenerate : handleSaveAndPrint}
                 disabled={loading}
-                className={`w-full h-16 rounded-2xl flex items-center justify-center gap-3 text-[12px] font-black uppercase tracking-[0.2em] transition-all shadow-xl ${success ? 'bg-emerald-500 text-white' : 'bg-neutral-900 text-white hover:bg-black'}`}
+                className={`w-full h-20 rounded-2xl flex flex-col items-center justify-center gap-1 text-[12px] font-black uppercase tracking-[0.2em] transition-all relative overflow-hidden group
+                  ${success ? 'bg-emerald-500 text-white shadow-emerald-200 shadow-xl' : 'bg-neutral-900 text-white hover:bg-black shadow-xl'}`}
              >
-                {loading ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : success ? <Check size={20} /> : (bulkMode ? <ListChecks size={20} /> : <Save size={20} />)}
-                {loading ? 'Processing...' : success ? 'Auth Successful' : (bulkMode ? 'Bulk Generate' : 'Generate & Deploy')}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                <div className="flex items-center gap-3 relative z-10">
+                  {loading ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : success ? <Check size={20} /> : (bulkMode ? <ListChecks size={20} /> : <Sparkles size={20} className="text-indigo-400" />)}
+                  <span>{loading ? (bulkMode ? `Generating...` : 'Rendering...') : success ? 'Asset Deployed' : (bulkMode ? 'Run Bulk Protocol' : 'Deploy Digital Token')}</span>
+                </div>
+                {!loading && !success && <span className="text-[8px] opacity-40 font-bold tracking-widest relative z-10">Sign & Verify Asset</span>}
+                {loading && bulkMode && (
+                  <div className="w-48 h-1 bg-white/20 rounded-full overflow-hidden mt-1 relative z-10">
+                    <motion.div 
+                      className="h-full bg-white"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${loadingProgress}%` }}
+                    />
+                  </div>
+                )}
              </button>
           </div>
 
@@ -874,7 +926,7 @@ export default function TicketingTool() {
                <div className={`w-full perspective-1000 flex justify-center ${orientation === 'vertical' ? 'overflow-auto md:overflow-visible h-full items-start md:items-center pt-4 md:pt-0' : ''}`}>
                <motion.div 
                   ref={ticketRef}
-                  className={`mx-auto rounded-[1.25rem] md:rounded-[1.5rem] overflow-hidden shadow-2xl flex transition-all duration-300 relative
+                  className={`mx-auto rounded-[1.5rem] overflow-hidden shadow-2xl flex transition-all duration-300 relative
                     ${orientation === 'horizontal' 
                        ? 'w-full max-w-[320px] md:max-w-3xl aspect-[5.5/2] flex-row scale-[0.9] md:scale-100' 
                        : 'w-[260px] h-[720px] md:w-[280px] md:h-[770px] flex-col scale-[0.7] md:scale-100 origin-top'
@@ -883,6 +935,8 @@ export default function TicketingTool() {
                      layout === 'neon' ? 'bg-[#0a0a0a] border border-[#00f3ff]/30 text-[#00f3ff]' : 
                      layout === 'brutalist' ? 'bg-white border-4 border-black shadow-[12px_12px_0_0_#000] rounded-none' : 
                      layout === 'elegant' ? 'bg-[#ffffff] border border-neutral-100' : 
+                     layout === 'industrial' ? 'bg-neutral-900 text-white font-mono rounded-none' :
+                     layout === 'bento' ? 'bg-white border border-neutral-100 p-1 md:p-2' :
                      layout === 'overlay' ? 'bg-neutral-100' : 'bg-white border border-neutral-100'}`}
                   style={{ 
                     transformStyle: 'preserve-3d',
@@ -892,6 +946,12 @@ export default function TicketingTool() {
                     lineHeight: lineHeight
                   }}
                >
+                  {/* Holographic Security Strip */}
+                  {(layout === 'modern' || layout === 'bento' || layout === 'elegant') && (
+                    <div className={`absolute z-30 holo-shimmer opacity-30 pointer-events-none
+                      ${orientation === 'horizontal' ? 'right-[20%] top-0 bottom-0 w-8' : 'bottom-[20%] left-0 right-0 h-4'}`} 
+                    />
+                  )}
                   {/* Overlay Mode Content */}
                   {layout === 'overlay' ? (
                     <div className="absolute inset-0 z-0">
@@ -916,6 +976,118 @@ export default function TicketingTool() {
                                  <Barcode value="TKT-SAMPLE-CODE" width={0.4} height={15} displayValue={false} font="Inter" />
                                </div>
                              )}
+                          </div>
+                       </div>
+                    </div>
+                  ) : layout === 'bento' ? (
+                    <div className="flex-1 flex gap-1 md:gap-2 h-full">
+                       {/* Main Info Block */}
+                       <div className="flex-[2] bg-neutral-50 rounded-[1rem] p-4 flex flex-col justify-between">
+                          <div className="flex justify-between items-start">
+                             <div className="space-y-4">
+                                {logo && <img src={logo} alt="logo" className="h-8 w-8 object-contain mb-2" />}
+                                <div className="space-y-1">
+                                   <div className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400">Official Pass</div>
+                                   <h2 className="text-xl md:text-3xl font-black uppercase leading-tight tracking-tighter text-neutral-900">{eventTitle}</h2>
+                                </div>
+                             </div>
+                             <div className="flex flex-col items-end">
+                                <span className="text-[10px] font-black uppercase text-neutral-400">Tier</span>
+                                <span className="px-3 py-1 bg-neutral-900 text-white rounded-full text-[10px] font-black uppercase tracking-widest leading-none mt-1">{ticketType}</span>
+                             </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                             <div className="bg-white p-3 rounded-2xl border border-neutral-100 shadow-sm">
+                                <div className="text-[8px] font-black uppercase text-neutral-300 mb-1">Venue Logistics</div>
+                                <div className="text-[10px] font-bold text-neutral-900 uppercase truncate"><MapPin size={10} className="inline mr-1 text-indigo-500" /> {venue}</div>
+                             </div>
+                             <div className="bg-white p-3 rounded-2xl border border-neutral-100 shadow-sm">
+                                <div className="text-[8px] font-black uppercase text-neutral-300 mb-1">Temporal Window</div>
+                                <div className="text-[10px] font-bold text-neutral-900 uppercase"><Calendar size={10} className="inline mr-1 text-indigo-500" /> {date}</div>
+                             </div>
+                          </div>
+                       </div>
+
+                       {/* Image/Visual Block */}
+                       <div className="flex-1 flex flex-col gap-1 md:gap-2">
+                          <div className="flex-1 bg-neutral-900 rounded-[1rem] overflow-hidden relative group">
+                             {featuredImage ? (
+                               <img src={featuredImage} alt="featured" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                             ) : (
+                               <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-2">
+                                 <ImageIcon size={24} />
+                                 <span className="text-[8px] font-black uppercase">Visual Asset</span>
+                               </div>
+                             )}
+                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                             <div className="absolute bottom-3 left-3 text-white">
+                                <div className="text-[8px] font-black uppercase text-white/50">Investment</div>
+                                <div className="text-sm font-black italic">UGX {price}</div>
+                             </div>
+                          </div>
+                          
+                          <div className="h-1/3 bg-neutral-100 rounded-[1rem] p-3 flex flex-col justify-center">
+                             <div className="text-[8px] font-black uppercase text-neutral-400 mb-1">Authentic Holder</div>
+                             <div className="text-xs font-black uppercase tracking-tighter text-neutral-900 truncate">{customerName}</div>
+                          </div>
+                       </div>
+
+                       {/* Validator Block */}
+                       <div className="flex-none w-24 md:w-32 bg-neutral-50 rounded-[1rem] p-3 flex flex-col items-center justify-center border-l border-neutral-100 relative overflow-hidden">
+                          <div className="absolute -right-4 -top-4 w-12 h-12 bg-indigo-500/10 rounded-full blur-xl" />
+                          <div className="bg-white p-2 md:p-3 rounded-xl shadow-xl border border-neutral-100 relative z-10">
+                            {codeType === 'qr' ? (
+                               <QRCodeCanvas value="TKT-SAMPLE-PROTOTYPE" size={80} level="H" fgColor="#000000" className="w-12 h-12 md:w-20 md:h-20" />
+                            ) : (
+                               <div className="flex flex-col items-center">
+                                 <Barcode value="TKT-SAMPLE-CODE" width={0.4} height={20} displayValue={false} font="Inter" />
+                               </div>
+                            )}
+                          </div>
+                          <div className="mt-4 text-[8px] font-black uppercase tracking-[0.3em] text-neutral-400 rotate-90 truncate">ID: {generateTicketId()}</div>
+                       </div>
+                    </div>
+                  ) : layout === 'industrial' ? (
+                    <div className="flex-1 flex flex-col border-4 border-white m-2 box-border">
+                       <div className="bg-white text-neutral-900 p-4 flex justify-between items-center border-b-4 border-white">
+                          <div className="text-xl font-black italic tracking-tighter uppercase">{eventTitle}</div>
+                          <div className="px-3 py-1 bg-neutral-900 text-white text-[10px] font-black">{ticketType}</div>
+                       </div>
+                       
+                       <div className="flex-1 flex">
+                          <div className="flex-1 p-6 border-r-4 border-white space-y-6">
+                             <div className="flex items-center gap-6">
+                                <div className="space-y-1">
+                                   <div className="text-[8px] font-black uppercase text-neutral-400">LOC_ID</div>
+                                   <div className="text-sm font-black uppercase">{venue}</div>
+                                </div>
+                                <div className="space-y-1">
+                                   <div className="text-[8px] font-black uppercase text-neutral-400">TEMPORAL_MARK</div>
+                                   <div className="text-sm font-black uppercase">{date} // {time}</div>
+                                </div>
+                             </div>
+
+                             <div className="space-y-2">
+                                <div className="text-[8px] font-black uppercase text-neutral-400">ASSIGNED_OPERATOR</div>
+                                <div className="text-2xl font-black uppercase tracking-tighter border-2 border-white/20 p-4">{customerName}</div>
+                             </div>
+
+                             <div className="flex items-end justify-between">
+                                <div className="text-4xl font-black italic">UGX {price}</div>
+                                <div className="text-[10px] font-black uppercase text-neutral-500">Verified Protocol // 2026</div>
+                             </div>
+                          </div>
+
+                          <div className="w-32 bg-white flex flex-col items-center justify-center p-4">
+                             <div className="p-2 bg-white border-2 border-neutral-900">
+                                {codeType === 'qr' ? (
+                                   <QRCodeCanvas value="TKT-SAMPLE-PROTOTYPE" size={80} level="H" fgColor="#000000" className="w-16 h-16" />
+                                ) : (
+                                   <Barcode value="TKT-SAMPLE-CODE" width={0.4} height={20} displayValue={false} font="Inter" />
+                                )}
+                             </div>
+                             <div className="mt-4 rotate-90 text-[8px] font-black tracking-widest text-neutral-900">{generateTicketId()}</div>
                           </div>
                        </div>
                     </div>
@@ -1016,18 +1188,22 @@ export default function TicketingTool() {
                  {/* Perforation Effect */}
                  {orientation === 'horizontal' && (
                     <>
-                      <div className="hidden md:block absolute left-[15%] top-0 bottom-0 w-px border-l-2 border-dashed border-neutral-200" />
-                      <div className="hidden md:block absolute left-[15%] top-1/2 -translate-y-1/2 -ml-2.5 w-5 h-5 bg-neutral-50 rounded-full shadow-inner" />
-                      <div className="hidden md:block absolute left-[15%] top-0 -mt-2.5 -ml-2.5 w-5 h-5 bg-neutral-50 rounded-full shadow-inner" />
-                      <div className="hidden md:block absolute left-[15%] bottom-0 -mb-2.5 -ml-2.5 w-5 h-5 bg-neutral-50 rounded-full shadow-inner" />
+                      <div className={`hidden md:block absolute left-[15%] top-0 bottom-0 w-px border-l-2 border-dashed ${layout === 'industrial' ? 'border-white' : 'border-neutral-200'}`} />
+                      <div className={`hidden md:block absolute left-[15%] top-1/2 -translate-y-1/2 -ml-2.5 w-5 h-5 rounded-full shadow-inner ${layout === 'industrial' ? 'bg-neutral-900 border-2 border-white' : 'bg-neutral-50'}`} />
+                      <div className={`hidden md:block absolute left-[15%] top-0 -mt-2.5 -ml-2.5 w-5 h-5 rounded-full shadow-inner ${layout === 'industrial' ? 'bg-neutral-900 border-2 border-white' : 'bg-neutral-50'}`} />
+                      <div className={`hidden md:block absolute left-[15%] bottom-0 -mb-2.5 -ml-2.5 w-5 h-5 rounded-full shadow-inner ${layout === 'industrial' ? 'bg-neutral-900 border-2 border-white' : 'bg-neutral-50'}`} />
+                      
+                      {layout === 'bento' && (
+                        <div className="hidden md:block absolute right-[25%] top-0 bottom-0 w-px border-l-2 border-dashed border-neutral-100" />
+                      )}
                     </>
                  )}
                  {orientation === 'vertical' && (
                    <>
-                      <div className="absolute left-0 right-0 top-[15%] h-px border-t-2 border-dashed border-neutral-200" />
-                      <div className="absolute left-1/2 -translate-x-1/2 top-[15%] -mt-2.5 w-5 h-5 bg-neutral-50 rounded-full shadow-inner" />
-                      <div className="absolute left-0 top-[15%] -mt-2.5 -ml-2.5 w-5 h-5 bg-neutral-50 rounded-full shadow-inner" />
-                      <div className="absolute right-0 top-[15%] -mt-2.5 -mr-2.5 w-5 h-5 bg-neutral-50 rounded-full shadow-inner" />
+                      <div className={`absolute left-0 right-0 top-[15%] h-px border-t-2 border-dashed ${layout === 'industrial' ? 'border-white' : 'border-neutral-200'}`} />
+                      <div className={`absolute left-1/2 -translate-x-1/2 top-[15%] -mt-2.5 w-5 h-5 rounded-full shadow-inner ${layout === 'industrial' ? 'bg-neutral-900 border-2 border-white' : 'bg-neutral-50'}`} />
+                      <div className={`absolute left-0 top-[15%] -mt-2.5 -ml-2.5 w-5 h-5 rounded-full shadow-inner ${layout === 'industrial' ? 'bg-neutral-900 border-2 border-white' : 'bg-neutral-50'}`} />
+                      <div className={`absolute right-0 top-[15%] -mt-2.5 -mr-2.5 w-5 h-5 rounded-full shadow-inner ${layout === 'industrial' ? 'bg-neutral-900 border-2 border-white' : 'bg-neutral-50'}`} />
                    </>
                  )}
                </motion.div>

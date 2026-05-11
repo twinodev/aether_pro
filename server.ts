@@ -3,7 +3,6 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import { Resend } from "resend";
-import OpenAI from "openai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -36,43 +35,9 @@ async function startServer() {
     return resend;
   };
 
-  // Initialize OpenAI lazily
-  let openai: OpenAI | null = null;
-  const getOpenAI = () => {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error("OPENAI_API_KEY environment variable is required");
-    }
-    if (!openai) {
-      openai = new OpenAI({ apiKey });
-    }
-    return openai;
-  };
-
   // API Routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", mode: process.env.NODE_ENV });
-  });
-
-  app.post("/api/ai/chat", async (req, res) => {
-    try {
-      const { messages, model = "gpt-4o-mini" } = req.body;
-
-      if (!messages || !Array.isArray(messages)) {
-        return res.status(400).json({ error: "Messages array is required" });
-      }
-
-      const client = getOpenAI();
-      const response = await client.chat.completions.create({
-        model,
-        messages,
-      });
-
-      res.json(response);
-    } catch (error: any) {
-      console.error("OpenAI error:", error);
-      res.status(500).json({ error: error.message });
-    }
   });
 
   app.post("/api/send-email", async (req, res) => {
@@ -103,7 +68,7 @@ async function startServer() {
   });
 
   // Catch-all for non-existent API routes
-  app.all("/api/*", (req, res) => {
+  app.all("/api/*all", (req, res) => {
     res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });
   });
 
@@ -117,7 +82,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    app.get("*all", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

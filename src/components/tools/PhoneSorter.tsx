@@ -11,105 +11,132 @@ interface NetworkGroup {
 
 const NETWORK_RULES: Record<string, { [prefix: string]: string }> = {
   'UG': { // Uganda +256
-    '77': 'MTN', '78': 'MTN', '76': 'MTN',
-    '75': 'Airtel', '70': 'Airtel', '74': 'Airtel',
-    '72': 'Lyca', '71': 'UTL'
+    '77': 'MTN', '78': 'MTN', '76': 'MTN', '31': 'MTN', '39': 'MTN', '32': 'MTN',
+    '75': 'Airtel', '70': 'Airtel', '74': 'Airtel', '20': 'Airtel',
+    '72': 'Lyca', 
+    '71': 'UTL', '41': 'UTL',
+    '73': 'Smile'
   },
   'KE': { // Kenya +254
-    '70': 'Safaricom', '71': 'Safaricom', '72': 'Safaricom', '79': 'Safaricom', '110': 'Safaricom', '111': 'Safaricom',
-    '73': 'Airtel', '75': 'Airtel', '78': 'Airtel', '100': 'Airtel',
-    '77': 'Telkom'
+    '70': 'Safaricom', '71': 'Safaricom', '72': 'Safaricom', '79': 'Safaricom', '110': 'Safaricom', '111': 'Safaricom', '112': 'Safaricom', '113': 'Safaricom', '114': 'Safaricom', '115': 'Safaricom',
+    '73': 'Airtel', '75': 'Airtel', '78': 'Airtel', '100': 'Airtel', '101': 'Airtel', '102': 'Airtel',
+    '77': 'Telkom', '76': 'Equitel'
   },
   'TZ': { // Tanzania +255
     '74': 'Vodacom', '75': 'Vodacom', '76': 'Vodacom',
     '68': 'Airtel', '69': 'Airtel', '78': 'Airtel',
     '65': 'Tigo', '67': 'Tigo', '71': 'Tigo',
-    '73': 'TTCL', '77': 'Zantel'
+    '73': 'TTCL', '77': 'Zantel', '61': 'Halotel', '62': 'Halotel'
   }
 };
 
 const COLORS: Record<string, string> = {
-  'MTN': 'bg-yellow-400 text-neutral-900',
-  'Airtel': 'bg-red-600 text-white',
-  'Safaricom': 'bg-emerald-600 text-white',
-  'Vodacom': 'bg-red-500 text-white',
-  'Tigo': 'bg-blue-600 text-white',
-  'Lyca': 'bg-purple-600 text-white',
-  'Telkom': 'bg-cyan-500 text-white',
-  'Unknown': 'bg-neutral-200 text-neutral-500'
+  'MTN': 'bg-yellow-400 text-neutral-900 border-yellow-500/20',
+  'Airtel': 'bg-rose-600 text-white border-rose-700/20',
+  'Safaricom': 'bg-emerald-600 text-white border-emerald-700/20',
+  'Vodacom': 'bg-red-500 text-white border-red-600/20',
+  'Tigo': 'bg-blue-600 text-white border-blue-700/20',
+  'Lyca': 'bg-purple-600 text-white border-purple-700/20',
+  'Telkom': 'bg-cyan-500 text-white border-cyan-600/20',
+  'Equitel': 'bg-amber-600 text-white border-amber-700/20',
+  'Smile': 'bg-indigo-500 text-white border-indigo-600/20',
+  'UTL': 'bg-sky-600 text-white border-sky-700/20',
+  'Halotel': 'bg-orange-500 text-white border-orange-600/20',
+  'Unknown': 'bg-neutral-200 text-neutral-500 border-neutral-300/20'
 };
 
+type Mode = 'phone' | 'nin';
+
 export default function PhoneSorter() {
+  const [mode, setMode] = useState<Mode>('phone');
   const [input, setInput] = useState('');
   const [country, setCountry] = useState('UG');
   const [groups, setGroups] = useState<NetworkGroup[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [formatMode, setFormatMode] = useState<'original' | 'local' | 'international'>('original');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const normalizeNumber = (num: string, targetFormat: 'original' | 'local' | 'international', countryCode: string) => {
+    let clean = num.replace(/\D/g, '');
+    const prefixMap: Record<string, string> = { 'UG': '256', 'KE': '254', 'TZ': '255' };
+    const prefix = prefixMap[countryCode];
+    if (clean.startsWith(prefix)) clean = clean.substring(prefix.length);
+    if (clean.startsWith('0')) clean = clean.substring(1);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      setInput(prev => prev + (prev ? '\n' : '') + text);
-    };
-    reader.readAsText(file);
-    // Reset file input
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (targetFormat === 'local') return `0${clean}`;
+    if (targetFormat === 'international') return `+${prefix}${clean}`;
+    return num;
+  };
+
+  const processNINs = () => {
+    setIsProcessing(true);
+    // Regex for Ugandan NIN: 14 chars, starts with CM or CF
+    const ninRegex = /\bC[MF][A-Z0-9]{12}\b/gi;
+    const matches: string[] = input.match(ninRegex) || [];
+    const uniqueNins = Array.from(new Set(matches.map(n => n.toUpperCase())));
+    
+    const groups: NetworkGroup[] = [
+      {
+        name: 'Validated NINs',
+        numbers: uniqueNins,
+        color: 'bg-indigo-600 text-white border-indigo-700/20'
+      }
+    ];
+    
+    setGroups(groups);
+    setTimeout(() => setIsProcessing(false), 300);
   };
 
   const processNumbers = () => {
+    if (mode === 'nin') return processNINs();
     setIsProcessing(true);
     
-    const rawNumbers: string[] = input.split(/[\s,;\n]+/).filter(n => n.trim().length >= 7);
-    const uniqueNumbers: string[] = Array.from(new Set(rawNumbers));
+    const rawNumbers: string[] = input.split(/[\s,;\n\t]+/).filter(n => n.trim().length >= 7);
+    const uniqueRaw: string[] = Array.from(new Set(rawNumbers));
     
     const results: Record<string, string[]> = { 'Unknown': [] };
     const rules = NETWORK_RULES[country];
 
-    uniqueNumbers.forEach((num: string) => {
-      // Clean number (remove non-digits, country codes for prefix matching)
+    uniqueRaw.forEach((num) => {
       let clean = num.toString().replace(/\D/g, '');
+      const prefixMap: Record<string, string> = { 'UG': '256', 'KE': '254', 'TZ': '255' };
+      const countryPrefix = prefixMap[country];
       
-      // Standardize to local format for prefix checking
-      if (country === 'UG' && clean.startsWith('256')) clean = clean.substring(3);
-      if (country === 'KE' && clean.startsWith('254')) clean = clean.substring(3);
-      if (country === 'TZ' && clean.startsWith('255')) clean = clean.substring(3);
-      
-      // Remove leading zero if exists
+      if (clean.startsWith(countryPrefix)) clean = clean.substring(countryPrefix.length);
       if (clean.startsWith('0')) clean = clean.substring(1);
 
       let found = false;
-      // Check longer prefixes first (e.g., 110)
       const sortedPrefixes = Object.keys(rules).sort((a, b) => b.length - a.length);
       
       for (const prefix of sortedPrefixes) {
         if (clean.startsWith(prefix)) {
           const network = rules[prefix];
           if (!results[network]) results[network] = [];
-          results[network].push(num);
+          
+          const formatted = normalizeNumber(num, formatMode, country);
+          results[network].push(formatted);
           found = true;
           break;
         }
       }
 
-      if (!found) results['Unknown'].push(num);
+      if (!found) {
+        results['Unknown'].push(normalizeNumber(num, formatMode, country));
+      }
     });
 
     const finalGroups = Object.entries(results)
       .filter(([_, nums]) => nums.length > 0)
       .map(([name, nums]) => ({
         name,
-        numbers: nums,
+        numbers: Array.from(new Set(nums)),
         color: COLORS[name] || COLORS['Unknown']
       }))
       .sort((a, b) => b.numbers.length - a.numbers.length);
 
     setGroups(finalGroups);
-    setIsProcessing(false);
+    setTimeout(() => setIsProcessing(false), 300);
   };
 
   const copyGroup = (nums: string[], id: string) => {
@@ -131,73 +158,139 @@ export default function PhoneSorter() {
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-8">
       <header className="mb-12">
-        <OfflineAlert toolName="Lead Intelligence" />
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-emerald-600 text-white rounded-lg">
-            <Users size={24} />
+        <OfflineAlert toolName="Data Intelligence" />
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-neutral-900 text-white rounded-2xl shadow-xl shadow-neutral-900/10">
+              <Users size={28} />
+            </div>
+            <div>
+              <h1 className="text-3xl font-black tracking-tight text-neutral-900 uppercase">Data Intelligence</h1>
+              <p className="text-neutral-500 font-medium text-xs uppercase tracking-widest italic opacity-60">High-Precision Regional Sequence Processor</p>
+            </div>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Bulk Phone Sorter</h1>
+
+          <div className="flex bg-neutral-100 p-1 rounded-2xl w-fit">
+             {(['phone', 'nin'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => {
+                    setMode(m);
+                    setGroups([]);
+                  }}
+                  className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                    mode === m ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-400 hover:text-neutral-600'
+                  }`}
+                >
+                  {m === 'phone' ? 'Phone Sorter' : 'NIN Validator'}
+                </button>
+             ))}
+          </div>
         </div>
-        <p className="text-neutral-500">Group thousands of phone numbers by network instantly.</p>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Input Panel */}
         <div className="lg:col-span-1 space-y-6">
           <div className="space-y-4">
-            <label className="text-xs font-bold uppercase tracking-widest text-neutral-400">Settings</label>
-            <div className="flex gap-2">
-              <select 
-                value={country} 
-                onChange={(e) => setCountry(e.target.value)}
-                className="btn-secondary text-xs h-auto py-2 flex-1"
-              >
-                <option value="UG">🇺🇬 Uganda</option>
-                <option value="KE">🇰🇪 Kenya</option>
-                <option value="TZ">🇹🇿 Tanzania</option>
-              </select>
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="p-2 text-neutral-400 hover:text-emerald-600 transition-colors"
-                title="Upload List"
-              >
-                <FileUp size={20} />
-              </button>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileUpload} 
-                className="hidden" 
-                accept=".txt,.csv"
-              />
+            {mode === 'phone' && (
+              <>
+                <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Regional Sequence</label>
+                <div className="flex gap-2">
+                  <select 
+                    value={country} 
+                    onChange={(e) => setCountry(e.target.value)}
+                    className="btn-secondary text-[10px] font-black uppercase tracking-widest h-auto py-3 flex-1 appearance-none bg-neutral-50"
+                  >
+                    <option value="UG">🇺🇬 UGANDA (+256)</option>
+                    <option value="KE">🇰🇪 KENYA (+254)</option>
+                    <option value="TZ">🇹🇿 TANZANIA (+255)</option>
+                  </select>
+                </div>
+
+                <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Normalization Protocol</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['original', 'local', 'international'] as const).map((mode) => (
+                    <button 
+                      key={mode}
+                      onClick={() => setFormatMode(mode)}
+                      className={`py-2 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all border ${
+                        formatMode === mode 
+                        ? 'bg-neutral-900 text-white border-neutral-900 shadow-lg' 
+                        : 'bg-white text-neutral-400 border-neutral-100 hover:border-neutral-200'
+                      }`}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Carrier Source</label>
               <button 
                 onClick={() => setInput('')}
-                className="p-2 text-neutral-400 hover:text-red-500 transition-colors"
+                className="text-neutral-300 hover:text-red-500 transition-colors"
                 title="Clear All"
               >
-                <Trash2 size={20} />
+                <Trash2 size={16} />
               </button>
             </div>
-            
-            <div className="relative">
+            <div className="relative group">
+               <div className="absolute top-4 left-4 z-10 pointer-events-none">
+                  <Globe size={14} className="text-neutral-300 group-focus-within:text-emerald-500 transition-colors" />
+               </div>
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Paste numbers here...&#10;0771234567&#10;+256 701 123 456&#10;075888222"
-                className="input-field min-h-[300px] font-mono text-xs py-4 leading-loose resize-none"
+                placeholder="PRO TIP: Drag and drop a .txt or .csv file here or paste raw number sequences...&#10;&#10;Examples:&#10;0771234567&#10;+256 701 123 456&#10;075888222"
+                className="input-field min-h-[350px] font-mono text-[10px] pl-10 pt-10 leading-loose resize-none bg-neutral-50/50"
               />
-              <div className="absolute bottom-3 right-3 text-[10px] font-bold text-neutral-300">
-                {input.split(/[\s,;\n]+/).filter(n => n.trim()).length} Detected
+              <div className="absolute bottom-4 right-4 flex items-center gap-3">
+                 <button 
+                   onClick={() => fileInputRef.current?.click()}
+                   className="p-2 bg-white border border-neutral-100 rounded-lg text-neutral-400 hover:text-emerald-600 transition-colors shadow-sm"
+                   title="Upload List"
+                 >
+                   <Upload size={14} />
+                 </button>
+                 <div className="text-[9px] font-black uppercase tracking-widest text-neutral-300 bg-white px-2 py-1 rounded-md border border-neutral-100">
+                   {input.split(/[\s,;\n\t]+/).filter(n => n.trim()).length} detected
+                 </div>
               </div>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = (event) => {
+                    const text = event.target?.result as string;
+                    setInput(prev => prev + (prev ? '\n' : '') + text);
+                  };
+                  reader.readAsText(file);
+                  if (fileInputRef.current) fileInputRef.current.value = '';
+                }} 
+                className="hidden" 
+                accept=".txt,.csv"
+              />
             </div>
 
             <button 
               onClick={processNumbers}
               disabled={!input.trim() || isProcessing}
-              className="btn-primary w-full shadow-lg shadow-emerald-500/10"
+              className="w-full h-14 bg-neutral-900 text-white rounded-2xl flex items-center justify-center gap-3 text-[10px] font-black uppercase tracking-[0.3em] hover:bg-black transition-all shadow-xl disabled:opacity-20"
             >
-              <Filter size={18} />
-              {isProcessing ? 'Processing...' : 'Sort by Network'}
+              {isProcessing ? (
+                <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  <Filter size={16} />
+                  Execute Sorter
+                </>
+              )}
             </button>
           </div>
         </div>

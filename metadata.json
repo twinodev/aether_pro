@@ -1,6 +1,6 @@
 {
   "name": "Aether Pro",
-  "description": "Aether Pro is a precision-engineered suite of privacy-first utility tools. Powered by cutting-edge web technologies, it offers high-performance digital solutions with zero latency.",
+  "description": "Aether Pro is a precision-engineered suite of utility tools including high-fidelity ticketing, number intelligence, and financial forensics. Powered by cutting-edge web technologies, it offers high-performance digital solutions with zero latency.",
   "requestFramePermissions": [
     "camera",
     "microphone"

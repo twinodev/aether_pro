@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, LayoutGrid, Settings, HelpCircle, Menu, X, QrCode, Barcode, Camera, Sparkles, Repeat, Shield, Users, FileText, Mic, LogOut, FileImage, Globe, Tickets, Home as HomeIcon, Search as SearchIcon, Terminal, Brackets } from 'lucide-react';
+import { ChevronLeft, LayoutGrid, Settings, HelpCircle, Menu, X, QrCode, Barcode, Camera, Sparkles, Repeat, Shield, Users, FileText, Mic, LogOut, FileImage, Globe, Tickets, Home as HomeIcon, Search as SearchIcon, Terminal, Brackets, Zap, Receipt } from 'lucide-react';
 import Home from './components/Home.tsx';
 import QRBuilder from './components/tools/QRBuilder.tsx';
 import BarcodeBuilder from './components/tools/BarcodeBuilder.tsx';
@@ -8,16 +8,11 @@ import Scanner from './components/tools/Scanner.tsx';
 import UnitConverter from './components/tools/UnitConverter.tsx';
 import PassGen from './components/tools/PassGen.tsx';
 import PhoneSorter from './components/tools/PhoneSorter.tsx';
-import DocScanner from './components/tools/DocScanner.tsx';
-import FileConverter from './components/tools/FileConverter.tsx';
-import ImageCompressor from './components/tools/ImageCompressor.tsx';
-import StringLab from './components/tools/StringLab.tsx';
-import IpIntelligence from './components/tools/IpIntelligence.tsx';
 import TicketingTool from './components/tools/TicketingTool.tsx';
 import OcrTool from './components/tools/OcrTool.tsx';
-import PdfMaster from './components/tools/PdfMaster.tsx';
-import PrivacyGuard from './components/tools/PrivacyGuard.tsx';
-import DevToolbox from './components/tools/DevToolbox.tsx';
+import LukuPredictor from './components/tools/LukuPredictor.tsx';
+import ReceiptLab from './components/tools/ReceiptLab.tsx';
+import MoMoIntelligence from './components/tools/MoMoIntelligence.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import SettingsView from './components/SettingsView.tsx';
 
@@ -25,31 +20,26 @@ import { useAuth } from './contexts/AuthContext.tsx';
 import LoginOverlay from './components/ui/LoginOverlay.tsx';
 import VipGate from './components/ui/VipGate.tsx';
 import BroadcastBanner from './components/ui/BroadcastBanner.tsx';
-import { User as UserIcon } from 'lucide-react';
+import { User as UserIcon, Smartphone } from 'lucide-react';
 
-const PREMIUM_VIEWS: string[] = ['phone-sorter', 'file-converter', 'image-compressor', 'ip-intelligence', 'ticketing', 'pdf-master', 'string-lab'];
+const PREMIUM_VIEWS: string[] = ['phone-sorter', 'ticketing', 'luku-predictor', 'receipt-lab', 'momo-intelligence'];
 
-type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'doc-scanner' | 'file-converter' | 'image-compressor' | 'ip-intelligence' | 'ticketing' | 'ocr-tool' | 'pdf-master' | 'privacy-guard' | 'dev-toolbox' | 'string-lab' | 'settings' | 'admin';
+type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'ticketing' | 'ocr-tool' | 'luku-predictor' | 'receipt-lab' | 'momo-intelligence' | 'settings' | 'admin';
 
 const navItems: { id: View; label: string; icon: any; adminOnly?: boolean }[] = [
   { id: 'home', label: 'Home', icon: LayoutGrid },
+  { id: 'momo-intelligence', label: 'MoMo', icon: Smartphone },
+  { id: 'receipt-lab', label: 'POS', icon: Receipt },
+  { id: 'luku-predictor', label: 'Energy', icon: Zap },
   { id: 'admin', label: 'Admin', icon: Shield, adminOnly: true },
   { id: 'ocr-tool', label: 'OCR', icon: FileText },
-  { id: 'pdf-master', label: 'PDFs', icon: FileText },
-  { id: 'privacy-guard', label: 'Guard', icon: Shield },
   { id: 'ticketing', label: 'Tickets', icon: Tickets },
-  { id: 'ip-intelligence', label: 'IP Intel', icon: Globe },
   { id: 'qr-builder', label: 'QR', icon: QrCode },
   { id: 'barcode-builder', label: 'Barcode', icon: Barcode },
-  { id: 'string-lab', label: 'Lab', icon: Brackets },
   { id: 'scanner', label: 'Scanner', icon: Camera },
-  { id: 'doc-scanner', label: 'Scan', icon: FileText },
-  { id: 'file-converter', label: 'Convert', icon: Repeat },
-  { id: 'image-compressor', label: 'Shrink', icon: FileImage },
   { id: 'converter', label: 'Units', icon: Repeat },
   { id: 'vault', label: 'Vault', icon: Shield },
-  { id: 'phone-sorter', label: 'Sort', icon: Users },
-  { id: 'dev-toolbox', label: 'Dev', icon: Terminal },
+  { id: 'phone-sorter', label: 'Intel', icon: Users },
 ];
 
 const getInitialView = (): View => {
@@ -183,26 +173,16 @@ export default function App() {
               return <PassGen />;
             case 'phone-sorter':
               return <PhoneSorter />;
-            case 'doc-scanner':
-              return <DocScanner />;
-            case 'file-converter':
-              return <FileConverter />;
-            case 'image-compressor':
-              return <ImageCompressor />;
-            case 'string-lab':
-              return <StringLab />;
-            case 'ip-intelligence':
-              return <IpIntelligence />;
+            case 'luku-predictor':
+              return <LukuPredictor />;
+            case 'momo-intelligence':
+              return <MoMoIntelligence />;
+            case 'receipt-lab':
+              return <ReceiptLab />;
             case 'ticketing':
               return <TicketingTool />;
             case 'ocr-tool':
               return <OcrTool />;
-            case 'pdf-master':
-              return <PdfMaster />;
-            case 'privacy-guard':
-              return <PrivacyGuard />;
-            case 'dev-toolbox':
-              return <DevToolbox />;
             case 'settings':
               return <SettingsView />;
             case 'admin':

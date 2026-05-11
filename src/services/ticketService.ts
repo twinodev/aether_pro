@@ -42,20 +42,35 @@ export const createTicket = async (ticket: Ticket) => {
   }
 };
 
-export const createTicketsBulk = async (tickets: Ticket[]) => {
-  const batch = writeBatch(db);
-  tickets.forEach(ticket => {
-    const docRef = doc(db, 'tickets', ticket.id);
-    batch.set(docRef, {
-      ...ticket,
-      createdAt: serverTimestamp(),
-    });
-  });
+export const createTicketsBulk = async (tickets: Ticket[], onProgress?: (progress: number) => void) => {
+  const CHUNK_SIZE = 400; // Leave some buffer room under 500
+  const chunks = [];
   
-  try {
-    await batch.commit();
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'tickets/batch');
+  for (let i = 0; i < tickets.length; i += CHUNK_SIZE) {
+    chunks.push(tickets.slice(i, i + CHUNK_SIZE));
+  }
+  
+  let processed = 0;
+  for (const chunk of chunks) {
+    const batch = writeBatch(db);
+    chunk.forEach(ticket => {
+      const docRef = doc(db, 'tickets', ticket.id);
+      batch.set(docRef, {
+        ...ticket,
+        createdAt: serverTimestamp(),
+      });
+    });
+    
+    try {
+      await batch.commit();
+      processed += chunk.length;
+      if (onProgress) {
+        onProgress(Math.round((processed / tickets.length) * 100));
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'tickets/batch');
+      throw error;
+    }
   }
 };
 
