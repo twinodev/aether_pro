@@ -13,7 +13,12 @@ interface ScannedPage {
   originalImage: string;
   filterId: string;
   rotation: number;
-  crop: { x: number; y: number; w: number; h: number };
+  points: {
+    tl: { x: number; y: number };
+    tr: { x: number; y: number };
+    bl: { x: number; y: number };
+    br: { x: number; y: number };
+  };
 }
 
 interface ScanFilter {
@@ -35,9 +40,15 @@ export default function DocScanner() {
   const [activePageIndex, setActivePageIndex] = useState<number>(-1);
   const [isCapturing, setIsCapturing] = useState(true);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   
   const [isCropping, setIsCropping] = useState(false);
-  const [cropBox, setCropBox] = useState({ x: 10, y: 10, w: 80, h: 80 });
+  const [points, setPoints] = useState({
+    tl: { x: 10, y: 10 },
+    tr: { x: 90, y: 10 },
+    bl: { x: 10, y: 90 },
+    br: { x: 90, y: 90 }
+  });
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,8 +61,10 @@ export default function DocScanner() {
     try {
       setError(null);
       setIsCapturing(true);
+      if (stream) stopCamera();
+      
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } 
+        video: { facingMode: facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } } 
       });
       setStream(mediaStream);
       if (videoRef.current) {
@@ -88,7 +101,12 @@ export default function DocScanner() {
       originalImage: imageData,
       filterId: 'original',
       rotation: 0,
-      crop: { x: 0, y: 0, w: 100, h: 100 }
+      points: {
+        tl: { x: 5, y: 5 },
+        tr: { x: 95, y: 5 },
+        bl: { x: 5, y: 95 },
+        br: { x: 95, y: 95 }
+      }
     };
 
     const newPages = [...pages, newPage];
@@ -118,10 +136,15 @@ export default function DocScanner() {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d')!;
       
-      const realX = (cropBox.x / 100) * img.width;
-      const realY = (cropBox.y / 100) * img.height;
-      const realW = (cropBox.w / 100) * img.width;
-      const realH = (cropBox.h / 100) * img.height;
+      const minX = Math.min(points.tl.x, points.bl.x, points.tr.x, points.br.x);
+      const maxX = Math.max(points.tl.x, points.bl.x, points.tr.x, points.br.x);
+      const minY = Math.min(points.tl.y, points.bl.y, points.tr.y, points.br.y);
+      const maxY = Math.max(points.tl.y, points.bl.y, points.tr.y, points.br.y);
+
+      const realX = (minX / 100) * img.width;
+      const realY = (minY / 100) * img.height;
+      const realW = ((maxX - minX) / 100) * img.width;
+      const realH = ((maxY - minY) / 100) * img.height;
 
       canvas.width = realW;
       canvas.height = realH;
@@ -132,7 +155,7 @@ export default function DocScanner() {
       updatedPages[activePageIndex] = {
         ...page,
         image: newImage,
-        crop: { ...cropBox }
+        points: { ...points }
       };
       setPages(updatedPages);
       setIsCropping(false);
@@ -218,55 +241,59 @@ export default function DocScanner() {
     }
   };
 
-  // Dragging logic for crop box
-  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
-  const [handleType, setHandleType] = useState<string | null>(null);
-
-  const handleMouseDown = (e: React.MouseEvent, type: string) => {
-    e.preventDefault();
-    setDragStart({ x: e.clientX, y: e.clientY });
-    setHandleType(type);
+  const handlePointDrag = (point: 'tl' | 'tr' | 'bl' | 'br', e: any, info: any) => {
+    const parent = cropRef.current?.parentElement;
+    if (!parent) return;
+    const rect = parent.getBoundingClientRect();
+    
+    setPoints(prev => {
+      const next = { ...prev };
+      const dx = (info.delta.x / rect.width) * 100;
+      const dy = (info.delta.y / rect.height) * 100;
+      
+      const newX = Math.max(0, Math.min(100, next[point].x + dx));
+      const newY = Math.max(0, Math.min(100, next[point].y + dy));
+      
+      next[point] = { x: newX, y: newY };
+      return next;
+    });
   };
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragStart || !handleType || !cropRef.current) return;
-    const parent = cropRef.current.parentElement!;
-    const parentRect = parent.getBoundingClientRect();
-    const dx = ((e.clientX - dragStart.x) / parentRect.width) * 100;
-    const dy = ((e.clientY - dragStart.y) / parentRect.height) * 100;
-    setDragStart({ x: e.clientX, y: e.clientY });
-    setCropBox(prev => {
-      let { x, y, w, h } = prev;
-      switch (handleType) {
-        case 'tl': x += dx; y += dy; w -= dx; h -= dy; break;
-        case 'tr': y += dy; w += dx; h -= dy; break;
-        case 'bl': x += dx; w -= dx; h += dy; break;
-        case 'br': w += dx; h += dy; break;
-        case 'move': x += dx; y += dy; break;
-      }
-      const newW = Math.max(5, Math.min(100 - x, w));
-      const newH = Math.max(5, Math.min(100 - y, h));
-      const newX = Math.max(0, Math.min(100 - newW, x));
-      const newY = Math.max(0, Math.min(100 - newH, y));
-      return { x: newX, y: newY, w: newW, h: newH };
-    });
-  }, [dragStart, handleType]);
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  const handleMouseUp = () => {
-    setDragStart(null);
-    setHandleType(null);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const imageData = event.target?.result as string;
+      const newPage: ScannedPage = {
+        id: Math.random().toString(36).substring(7),
+        image: imageData,
+        originalImage: imageData,
+        filterId: 'original',
+        rotation: 0,
+        points: {
+          tl: { x: 5, y: 5 },
+          tr: { x: 95, y: 5 },
+          bl: { x: 5, y: 95 },
+          br: { x: 95, y: 95 }
+        }
+      };
+
+      const newPages = [...pages, newPage];
+      setPages(newPages);
+      setActivePageIndex(newPages.length - 1);
+      setIsCapturing(false);
+      stopCamera();
+    };
+    reader.readAsDataURL(file);
   };
 
   useEffect(() => {
-    if (dragStart) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
+    if (activePageIndex !== -1 && pages[activePageIndex] && !isCropping) {
+      setPoints(pages[activePageIndex].points);
     }
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [dragStart, handleMouseMove]);
+  }, [activePageIndex, pages, isCropping]);
 
   useEffect(() => {
     if (isCapturing) {
@@ -275,7 +302,7 @@ export default function DocScanner() {
       stopCamera();
     }
     return () => stopCamera();
-  }, [isCapturing]);
+  }, [isCapturing, facingMode]);
 
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-8">
@@ -368,11 +395,21 @@ export default function DocScanner() {
                     </div>
                   </div>
                   <div className="absolute bottom-8 inset-x-0 flex justify-center items-center gap-6">
+                     <label className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white cursor-pointer hover:bg-white/30 transition-colors">
+                        <ImageIcon size={24} />
+                        <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
+                     </label>
                      <button 
                        onClick={captureFrame}
                        className="w-20 h-20 bg-white rounded-full border-4 border-rose-500/30 flex items-center justify-center shadow-2xl active:scale-90 transition-transform group"
                      >
                        <div className="w-16 h-16 border-2 border-neutral-900 rounded-full group-hover:scale-95 transition-transform" />
+                     </button>
+                     <button 
+                       onClick={() => setFacingMode(prev => prev === 'user' ? 'environment' : 'user')}
+                       className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+                     >
+                        <RefreshCw size={24} />
                      </button>
                   </div>
                   {error && (
@@ -399,31 +436,46 @@ export default function DocScanner() {
                         alt="Editing doc"
                       />
                       {isCropping && (
-                        <div className="absolute inset-0 bg-black/60 z-10 flex items-center justify-center">
-                          <div className="relative w-full h-full flex items-center justify-center">
-                             <div 
-                               ref={cropRef}
-                               style={{
-                                 position: 'absolute',
-                                 left: `${cropBox.x}%`,
-                                 top: `${cropBox.y}%`,
-                                 width: `${cropBox.w}%`,
-                                 height: `${cropBox.h}%`
-                               }}
-                               className="border-2 border-rose-500 ring-1 ring-white/50 shadow-[0_0_1000px_1000px_rgba(0,0,0,0.5)] z-20"
-                             >
-                                <div onMouseDown={(e) => handleMouseDown(e, 'move')} className="absolute inset-0 cursor-move" />
-                                {['tl', 'tr', 'bl', 'br'].map(pos => (
-                                  <div 
-                                    key={pos}
-                                    onMouseDown={(e) => handleMouseDown(e, pos)}
-                                    className={`absolute w-6 h-6 bg-white border-2 border-rose-500 rounded-full cursor-pointer z-30 flex items-center justify-center
-                                      ${pos === 'tl' ? '-top-3 -left-3' : pos === 'tr' ? '-top-3 -right-3' : pos === 'bl' ? '-bottom-3 -left-3' : '-bottom-3 -right-3'}`}
-                                  >
-                                    <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" />
-                                  </div>
-                                ))}
-                             </div>
+                        <div className="absolute inset-0 bg-black/60 z-30 flex items-center justify-center overflow-hidden touch-none">
+                          <div className="relative w-full h-full flex items-center justify-center" ref={cropRef}>
+                             <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
+                               <path 
+                                 d={`M ${points.tl.x}% ${points.tl.y}% L ${points.tr.x}% ${points.tr.y}% L ${points.br.x}% ${points.br.y}% L ${points.bl.x}% ${points.bl.y}% Z`}
+                                 fill="rgba(244, 63, 94, 0.2)"
+                                 stroke="#f43f5e"
+                                 strokeWidth="3"
+                                 strokeDasharray="5,5"
+                               />
+                               {/* Shadow overlay points */}
+                               <mask id="crop-mask">
+                                 <rect width="100%" height="100%" fill="white" />
+                                 <path 
+                                   d={`M ${points.tl.x}% ${points.tl.y}% L ${points.tr.x}% ${points.tr.y}% L ${points.br.x}% ${points.br.y}% L ${points.bl.x}% ${points.bl.y}% Z`}
+                                   fill="black"
+                                 />
+                               </mask>
+                             </svg>
+                             
+                             {(['tl', 'tr', 'bl', 'br'] as const).map(pos => (
+                               <motion.div 
+                                 key={pos}
+                                 drag
+                                 dragMomentum={false}
+                                 onDrag={(e, info) => handlePointDrag(pos, e, info)}
+                                 style={{
+                                   position: 'absolute',
+                                   left: `${points[pos].x}%`,
+                                   top: `${points[pos].y}%`,
+                                   x: '-50%',
+                                   y: '-50%'
+                                 }}
+                                 className="w-12 h-12 flex items-center justify-center z-40 cursor-move"
+                               >
+                                 <div className="w-8 h-8 bg-white border-4 border-rose-500 rounded-full shadow-xl flex items-center justify-center">
+                                   <div className="w-2 h-2 bg-rose-500 rounded-full" />
+                                 </div>
+                               </motion.div>
+                             ))}
                           </div>
                         </div>
                       )}

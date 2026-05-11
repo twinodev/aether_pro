@@ -89,20 +89,30 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
     setShowInterstitial(true);
   };
 
+  const categories = [
+    { id: 'all', name: 'All Assets', icon: <Sparkles size={14} /> },
+    { id: 'visual', name: 'Visual Intelligence', icon: <Camera size={14} /> },
+    { id: 'identity', name: 'Identity Systems', icon: <QrCode size={14} /> },
+    { id: 'file', name: 'File Engineering', icon: <FileText size={14} /> },
+    { id: 'data', name: 'Data Protocols', icon: <Terminal size={14} /> },
+  ];
+
   const tools = [
     {
       id: 'qr-builder',
       title: 'QR Builder',
       description: 'Custom codes for URLs, text, and wifi.',
       icon: <QrCode size={24} />,
-      color: 'bg-indigo-600'
+      color: 'bg-indigo-600',
+      category: 'identity'
     },
     {
       id: 'doc-scanner',
       title: 'Doc Scanner',
       description: 'Capture & enhance documents in seconds.',
       icon: <FileText size={24} />,
-      color: 'bg-emerald-600'
+      color: 'bg-emerald-600',
+      category: 'visual'
     },
     {
       id: 'file-converter',
@@ -110,7 +120,8 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
       description: 'Local media conversion for images & video.',
       icon: <Repeat size={24} />,
       color: 'bg-rose-600',
-      vip: true
+      vip: true,
+      category: 'file'
     },
     {
       id: 'image-compressor',
@@ -118,35 +129,40 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
       description: 'Optimize and compress image assets locally.',
       icon: <FileImage size={24} />,
       color: 'bg-neutral-800',
-      vip: true
+      vip: true,
+      category: 'visual'
     },
     {
       id: 'scanner',
       title: 'Scan Engine',
       description: 'Instant decoding for any code format.',
       icon: <Camera size={24} />,
-      color: 'bg-amber-600'
+      color: 'bg-amber-600',
+      category: 'visual'
     },
     {
       id: 'barcode-builder',
       title: 'Barcode Maker',
       description: 'Professional tracking code generation.',
       icon: <BarcodeIcon size={24} />,
-      color: 'bg-sky-600'
+      color: 'bg-sky-600',
+      category: 'identity'
     },
     {
       id: 'converter',
       title: 'Smart Units',
       description: 'Swift conversions for any global unit.',
       icon: <Repeat size={24} />,
-      color: 'bg-violet-600'
+      color: 'bg-violet-600',
+      category: 'file'
     },
     {
       id: 'vault',
       title: 'Password Vault',
       description: 'Generate high-entropy secure keys.',
       icon: <Shield size={24} />,
-      color: 'bg-neutral-800'
+      color: 'bg-neutral-800',
+      category: 'data'
     },
     {
       id: 'phone-sorter',
@@ -154,7 +170,8 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
       description: 'Bulk process phone numbers by network.',
       icon: <Users size={24} />,
       color: 'bg-teal-600',
-      vip: true
+      vip: true,
+      category: 'data'
     },
     {
       id: 'ip-intelligence',
@@ -163,7 +180,8 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
       icon: <Globe size={24} />,
       color: 'bg-indigo-600',
       vip: true,
-      featured: true
+      featured: true,
+      category: 'data'
     },
     {
       id: 'ticketing',
@@ -172,7 +190,8 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
       icon: <Tickets size={24} />,
       color: 'bg-indigo-600',
       vip: true,
-      featured: true
+      featured: true,
+      category: 'identity'
     },
     {
       id: 'pdf-master',
@@ -181,14 +200,16 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
       icon: <FileText size={24} />,
       color: 'bg-red-600',
       vip: true,
-      featured: true
+      featured: true,
+      category: 'file'
     },
     {
       id: 'privacy-guard',
       title: 'Privacy Guard',
       description: 'Strip EXIF data and anonymize image assets.',
       icon: <Shield size={24} />,
-      color: 'bg-emerald-600'
+      color: 'bg-emerald-600',
+      category: 'visual'
     },
     {
       id: 'dev-toolbox',
@@ -196,14 +217,19 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
       description: 'JSON, Base64, and JWT utilities for engineers.',
       icon: <Terminal size={24} />,
       color: 'bg-neutral-900',
-      featured: true
+      featured: true,
+      category: 'data'
     }
   ];
 
-  const filteredTools = tools.filter(tool => 
-    tool.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    tool.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const [activeCategory, setActiveCategory] = useState('all');
+
+  const filteredTools = tools.filter(tool => {
+    const matchesSearch = tool.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         tool.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = activeCategory === 'all' || tool.category === activeCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -233,6 +259,26 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
                onChange={(e) => setSearchQuery(e.target.value)}
                className="w-full h-16 bg-white dark:bg-neutral-900 border-2 border-neutral-100 dark:border-neutral-800 rounded-3xl pl-16 pr-6 text-sm font-bold uppercase tracking-widest focus:outline-none focus:border-neutral-900 dark:focus:border-white focus:ring-8 focus:ring-neutral-900/5 dark:focus:ring-white/5 transition-all shadow-xl shadow-black/5 dark:shadow-white/5 text-neutral-900 dark:text-white"
              />
+          </div>
+
+          {/* Category Navigation */}
+          <div className="mt-12 flex flex-wrap gap-3">
+            {categories.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`
+                  flex items-center gap-2 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all
+                  ${activeCategory === cat.id 
+                    ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 shadow-xl shadow-black/10 dark:shadow-white/10 scale-105' 
+                    : 'bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-700'
+                  }
+                `}
+              >
+                {cat.icon}
+                {cat.name}
+              </button>
+            ))}
           </div>
 
           <p className="mt-8 max-w-xl text-neutral-400 dark:text-neutral-500 text-lg md:text-xl font-medium leading-relaxed">
@@ -304,8 +350,8 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
       >
         {filteredTools.map((tool) => (
           <div key={tool.id} className={`
-             ${tool.id === 'qr-builder' || tool.id === 'doc-scanner' ? 'lg:col-span-2 lg:row-span-1' : ''}
-             ${tool.id === 'ip-intelligence' ? 'lg:col-span-2 lg:row-span-2' : ''}
+             ${activeCategory === 'all' && (tool.id === 'qr-builder' || tool.id === 'doc-scanner') ? 'lg:col-span-2 lg:row-span-1' : ''}
+             ${activeCategory === 'all' && tool.id === 'ip-intelligence' ? 'lg:col-span-2 lg:row-span-2' : ''}
              relative
           `}>
             <ToolCard 
