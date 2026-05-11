@@ -3,6 +3,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import { Resend } from "resend";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,6 +15,12 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+
+  // Request logging
+  app.use((req, res, next) => {
+    console.log(`${req.method} ${req.url}`);
+    next();
+  });
 
   // Initialize Resend lazily
   let resend: Resend | null = null;
@@ -27,6 +36,10 @@ async function startServer() {
   };
 
   // API Routes
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", mode: process.env.NODE_ENV });
+  });
+
   app.post("/api/send-email", async (req, res) => {
     try {
       const { to, subject, html } = req.body;
@@ -52,6 +65,11 @@ async function startServer() {
       console.error("Resend error:", error);
       res.status(500).json({ error: error.message });
     }
+  });
+
+  // Catch-all for non-existent API routes
+  app.all("/api/*", (req, res) => {
+    res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });
   });
 
   // Vite middleware for development

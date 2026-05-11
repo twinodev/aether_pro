@@ -3,7 +3,6 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { Download, Share2, Copy, Check, QrCode, Type, Link as LinkIcon, Mail, Phone, Layout, Image as ImageIcon, X, Sparkles, Lock, Play, Moon, Sun, User, Wifi } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../contexts/AuthContext';
-import AdOverlay from '../ui/AdOverlay';
 
 type QRType = 'text' | 'url' | 'email' | 'phone' | 'vcard' | 'wifi';
 
@@ -296,10 +295,22 @@ END:VCARD`;
               <div className="flex flex-wrap gap-4 items-center">
                 {!isVip && !adUnlocked ? (
                   <button 
-                    onClick={() => setShowAd(true)}
-                    className="flex items-center gap-2 px-6 py-3 bg-neutral-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-xl"
+                    onClick={() => {
+                      setShowAd(true);
+                      setTimeout(() => {
+                        setAdUnlocked(true);
+                        setShowAd(false);
+                      }, 1000);
+                    }}
+                    disabled={showAd}
+                    className="flex items-center gap-2 px-6 py-3 bg-neutral-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-xl disabled:opacity-50"
                   >
-                    <Play size={14} /> Watch Ad to Add Logo
+                    {showAd ? (
+                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Play size={14} />
+                    )}
+                    {showAd ? 'Processing...' : 'Unlock Logo via Sponsor'}
                   </button>
                 ) : (
                   <button 
@@ -319,15 +330,6 @@ END:VCARD`;
                 />
                 
                 <AnimatePresence>
-                  {showAd && (
-                    <AdOverlay 
-                      onComplete={() => {
-                        setAdUnlocked(true);
-                        setShowAd(false);
-                      }}
-                      onClose={() => setShowAd(false)}
-                    />
-                  )}
                   {logo && (
                     <motion.div 
                       initial={{ opacity: 0, scale: 0.8 }}

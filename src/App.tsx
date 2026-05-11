@@ -24,7 +24,6 @@ import { useAuth } from './contexts/AuthContext.tsx';
 import LoginOverlay from './components/ui/LoginOverlay.tsx';
 import VipGate from './components/ui/VipGate.tsx';
 import BroadcastBanner from './components/ui/BroadcastBanner.tsx';
-import AdMobAd from './components/ui/AdMobAd.tsx';
 import { User as UserIcon } from 'lucide-react';
 
 const PREMIUM_VIEWS: string[] = ['phone-sorter', 'file-converter', 'image-compressor', 'ip-intelligence', 'ticketing', 'pdf-master'];
@@ -299,9 +298,6 @@ export default function App() {
             <span className="hidden lg:block text-xs font-bold uppercase tracking-widest">Settings</span>
           </button>
         </div>
-        <div className="mt-auto px-4 pb-6 hidden lg:block overflow-hidden max-h-[25vh] shrink-0 border-t border-neutral-50 dark:border-neutral-800 pt-4">
-           <AdMobAd adSlot="sidebar-bottom" format="vertical" className="h-40" />
-        </div>
       </aside>
 
       {/* Main Layout Area */}
@@ -396,10 +392,9 @@ export default function App() {
                    <div className="flex flex-col items-center gap-3">
                       <div className="flex items-center gap-2 opacity-30">
                         <div className="w-1 h-1 bg-neutral-400 rounded-full" />
-                        <span className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.4em] text-neutral-400">Sponsored Intelligence</span>
+                        <span className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.4em] text-neutral-400">Intelligence Node</span>
                         <div className="w-1 h-1 bg-neutral-400 rounded-full" />
                       </div>
-                      <AdMobAd adSlot="content-bottom" format="horizontal" className="w-full max-w-4xl h-24 md:h-32" />
                    </div>
                 </div>
               )}

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, PlayCircle, Sparkles, ShieldCheck, Zap } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import RewardedAd from './RewardedAd';
 
 interface VipGateProps {
   toolName: string;
@@ -38,9 +37,9 @@ export default function VipGate({ toolName, onUnlocked, onClose }: VipGateProps)
             <Sparkles size={32} className="md:w-10 md:h-10" />
           </div>
           
-          <h2 className="text-2xl md:text-3xl font-black tracking-tight text-neutral-900 mb-3 md:mb-4 uppercase">VIP ACCESS</h2>
+          <h2 className="text-2xl md:text-3xl font-black tracking-tight text-neutral-900 mb-3 md:mb-4 uppercase">Tool Access</h2>
           <p className="text-neutral-500 font-medium leading-relaxed mb-8 md:mb-10 text-sm md:text-base">
-            <span className="text-rose-600 font-bold">{toolName}</span> is a premium module. Watch a donor message to unlock access.
+            <span className="text-rose-600 font-bold">{toolName}</span> is a premium module. A sponsor deal is being negotiated.
           </p>
 
           <div className="grid grid-cols-2 gap-4 w-full mb-10">
@@ -55,28 +54,26 @@ export default function VipGate({ toolName, onUnlocked, onClose }: VipGateProps)
           </div>
 
           <button 
-            onClick={() => setIsWatching(true)}
-            className="w-full h-16 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl shadow-xl shadow-rose-600/20 flex items-center justify-center gap-4 group transition-all"
-          >
-            <PlayCircle size={24} className="group-hover:scale-110 transition-transform" />
-            <span className="text-sm font-black uppercase tracking-widest">Watch & Unlock Tool</span>
-          </button>
-        </div>
-
-        <AnimatePresence>
-          {isWatching && (
-            <RewardedAd 
-              adUnitId="ca-app-pub-5861878697571557/6735085889"
-              type="rewarded"
-              onReward={() => {
+            onClick={() => {
+              setIsWatching(true);
+              setTimeout(() => {
                 setIsWatching(false);
                 onUnlocked();
-              }}
-              onClose={() => setIsWatching(false)}
-            />
-          )}
-        </AnimatePresence>
-
+              }, 1500);
+            }}
+            disabled={isWatching}
+            className="w-full h-16 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl shadow-xl shadow-rose-600/20 flex items-center justify-center gap-4 group transition-all disabled:opacity-50"
+          >
+            {isWatching ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <PlayCircle size={24} className="group-hover:scale-110 transition-transform" />
+            )}
+            <span className="text-sm font-black uppercase tracking-widest">
+              {isWatching ? 'Initializing Relay...' : 'Watch & Unlock Tool'}
+            </span>
+          </button>
+        </div>
       </motion.div>
     </div>
   );

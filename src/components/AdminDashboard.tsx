@@ -23,33 +23,23 @@ import {
 } from 'lucide-react';
 import { subscribeToAllActivities, Activity } from '../services/activityService';
 import { subscribeToAllUsers, toggleUserVip, UserProfile } from '../services/userService';
-import { subscribeToAds, saveAd, deleteAd, Advertisement } from '../services/adService';
 import { subscribeToBroadcasts, createBroadcast, deleteBroadcast, Broadcast } from '../services/broadcastService';
 import { useAuth } from '../contexts/AuthContext';
 
-type AdminTab = 'overview' | 'users' | 'intelligence' | 'ads' | 'broadcasts';
+type AdminTab = 'overview' | 'users' | 'intelligence' | 'broadcasts';
 
 export default function AdminDashboard() {
   const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [activities, setActivities] = useState<Activity[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [ads, setAds] = useState<Advertisement[]>([]);
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState({ totalOps: 0, uniqueUsers: 0, vipCount: 0 });
-  const [adsenseId, setAdsenseId] = useState('');
-  const [isAddingAd, setIsAddingAd] = useState(false);
   const [isAddingBroadcast, setIsAddingBroadcast] = useState(false);
   const [newBroadcast, setNewBroadcast] = useState<{message: string, type: Broadcast['type']}>({
     message: '',
     type: 'info'
-  });
-  const [newAd, setNewAd] = useState<Partial<Advertisement>>({
-    title: '',
-    imageUrl: '',
-    targetUrl: '',
-    placement: 'bottom'
   });
 
   useEffect(() => {
@@ -68,10 +58,6 @@ export default function AdminDashboard() {
         }));
       });
 
-      const unsubAds = subscribeToAds((adData) => {
-        setAds(adData);
-      });
-
       const unsubBroadcasts = subscribeToBroadcasts((data) => {
         setBroadcasts(data);
       });
@@ -79,7 +65,6 @@ export default function AdminDashboard() {
       return () => {
         unsubActivities();
         unsubUsers();
-        unsubAds();
         unsubBroadcasts();
       };
     }
@@ -113,7 +98,7 @@ export default function AdminDashboard() {
         </div>
 
         <nav className="flex bg-neutral-100 p-1.5 rounded-2xl overflow-x-auto no-scrollbar">
-           {(['overview', 'users', 'intelligence', 'ads', 'broadcasts'] as const).map((tab) => (
+           {(['overview', 'users', 'intelligence', 'broadcasts'] as const).map((tab) => (
              <button
                key={tab}
                onClick={() => setActiveTab(tab)}
@@ -315,99 +300,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {activeTab === 'ads' && (
-        <div className="space-y-8">
-           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="bg-white border border-neutral-100 rounded-[2.5rem] p-10 shadow-sm">
-                 <div className="flex items-center gap-4 mb-8">
-                    <Globe size={24} className="text-indigo-600" />
-                    <h3 className="text-2xl font-black uppercase tracking-tight">AdSense Integration</h3>
-                 </div>
-                 <div className="space-y-4">
-                    <div className="space-y-2">
-                       <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400 pl-2">Publisher ID</label>
-                       <div className="flex gap-2">
-                          <input 
-                             type="text" 
-                             placeholder="ca-pub-xxxxxxxxxxxxxxxx"
-                             value={adsenseId}
-                             onChange={(e) => setAdsenseId(e.target.value)}
-                             className="flex-1 h-14 px-6 bg-neutral-50 border-none rounded-2xl text-sm font-medium focus:ring-2 ring-indigo-600 transition-all font-mono"
-                          />
-                          <button 
-                             onClick={() => {/* Save adsense ID */}}
-                             className="px-6 h-14 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest"
-                          >
-                             Sync
-                          </button>
-                       </div>
-                       <p className="text-[10px] text-neutral-400 italic pl-2">Connecting AdSense will override manual advertisements in synchronized zones.</p>
-                    </div>
-                 </div>
-              </div>
-
-              <div className="bg-neutral-900 text-white rounded-[2.5rem] p-10 relative overflow-hidden">
-                 <div className="relative z-10">
-                    <div className="flex items-center gap-4 mb-8">
-                       <Megaphone size={24} className="text-rose-600" />
-                       <h3 className="text-2xl font-black uppercase tracking-tight italic">Manual Signal</h3>
-                    </div>
-                    <p className="text-neutral-400 text-sm mb-8 max-w-sm">Inject your own advertisement banners directly into the platform toolsets.</p>
-                    <button 
-                       onClick={() => setIsAddingAd(true)}
-                       className="flex items-center gap-2 px-6 py-4 bg-white text-neutral-900 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-all shadow-xl"
-                    >
-                       <Plus size={16} /> New Asset
-                    </button>
-                 </div>
-                 <Megaphone className="absolute bottom-[-20px] right-[-20px] text-white/5" size={200} />
-              </div>
-           </div>
-
-           <div className="bg-white border border-neutral-100 rounded-[2.5rem] shadow-sm overflow-hidden">
-              <div className="p-10 border-b border-neutral-50">
-                 <h3 className="text-2xl font-black uppercase tracking-tight">Active Asset Terminal</h3>
-              </div>
-              <div className="divide-y divide-neutral-50">
-                 {ads.length === 0 ? (
-                   <div className="p-20 text-center text-neutral-400 font-medium">No manual assets deployed.</div>
-                 ) : (
-                   ads.map((ad) => (
-                     <div key={ad.id} className="p-8 flex items-center justify-between hover:bg-neutral-50 transition-colors">
-                        <div className="flex items-center gap-6">
-                           <div className="w-24 h-16 bg-neutral-100 rounded-xl overflow-hidden border border-neutral-200">
-                              <img src={ad.imageUrl} alt="" className="w-full h-full object-cover" />
-                           </div>
-                           <div>
-                              <h4 className="text-sm font-black uppercase tracking-tight text-neutral-900">{ad.title}</h4>
-                              <div className="flex items-center gap-4 mt-1">
-                                 <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest">{ad.placement} zone</span>
-                                 <div className="w-1 h-1 rounded-full bg-neutral-200" />
-                                 <a href={ad.targetUrl} target="_blank" className="text-[10px] font-bold text-neutral-400 flex items-center gap-1 hover:text-neutral-900">
-                                    <ExternalLink size={10} /> Link Target
-                                 </a>
-                              </div>
-                           </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                           <div className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${ad.active ? 'bg-indigo-50 text-indigo-600' : 'bg-neutral-100 text-neutral-400'}`}>
-                              {ad.active ? 'Active Signal' : 'Standby'}
-                           </div>
-                           <button 
-                              onClick={() => deleteAd(ad.id)}
-                              className="p-3 text-neutral-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                           >
-                              <Trash2 size={16} />
-                           </button>
-                        </div>
-                     </div>
-                   )
-                 ))}
-              </div>
-           </div>
-        </div>
-      )}
-
       {activeTab === 'broadcasts' && (
         <div className="space-y-8">
            <div className="bg-neutral-900 text-white rounded-[2.5rem] p-10 relative overflow-hidden">
@@ -543,87 +435,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {isAddingAd && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-           <motion.div 
-             initial={{ opacity: 0 }}
-             animate={{ opacity: 1 }}
-             onClick={() => setIsAddingAd(false)}
-             className="absolute inset-0 bg-neutral-900/60 backdrop-blur-sm"
-           />
-           <motion.div 
-             initial={{ scale: 0.9, opacity: 0 }}
-             animate={{ scale: 1, opacity: 1 }}
-             className="bg-white w-full max-w-xl rounded-[2.5rem] p-10 relative z-10 shadow-2xl space-y-6"
-           >
-              <h3 className="text-3xl font-black uppercase tracking-tighter italic">Provision Asset</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Campaign Title</label>
-                    <input 
-                       type="text" 
-                       value={newAd.title}
-                       onChange={e => setNewAd({...newAd, title: e.target.value})}
-                       className="w-full h-12 px-4 bg-neutral-50 rounded-xl text-sm font-medium focus:ring-2 ring-indigo-600 outline-none"
-                    />
-                 </div>
-                 <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Target Placement</label>
-                    <select 
-                       value={newAd.placement}
-                       onChange={e => setNewAd({...newAd, placement: e.target.value as any})}
-                       className="w-full h-12 px-4 bg-neutral-50 rounded-xl text-sm font-medium focus:ring-2 ring-indigo-600 outline-none"
-                    >
-                       <option value="top">Top Banner</option>
-                       <option value="bottom">Bottom Footer</option>
-                       <option value="sidebar">Sidebar Widget</option>
-                    </select>
-                 </div>
-              </div>
-
-              <div className="space-y-2">
-                 <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Image Resource URL</label>
-                 <input 
-                    type="text" 
-                    value={newAd.imageUrl}
-                    onChange={e => setNewAd({...newAd, imageUrl: e.target.value})}
-                    placeholder="https://..."
-                    className="w-full h-12 px-4 bg-neutral-50 rounded-xl text-sm font-medium focus:ring-2 ring-indigo-600 outline-none"
-                 />
-              </div>
-
-              <div className="space-y-2">
-                 <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Redirect Signal URL</label>
-                 <input 
-                    type="text" 
-                    value={newAd.targetUrl}
-                    onChange={e => setNewAd({...newAd, targetUrl: e.target.value})}
-                    className="w-full h-12 px-4 bg-neutral-50 rounded-xl text-sm font-medium focus:ring-2 ring-indigo-600 outline-none"
-                 />
-              </div>
-
-              <div className="flex gap-4 pt-4">
-                 <button 
-                    onClick={async () => {
-                       await saveAd(newAd);
-                       setIsAddingAd(false);
-                       setNewAd({ title: '', imageUrl: '', targetUrl: '', placement: 'bottom' });
-                    }}
-                    className="flex-1 h-14 bg-neutral-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest"
-                 >
-                    Inject Asset
-                 </button>
-                 <button 
-                    onClick={() => setIsAddingAd(false)}
-                    className="px-8 h-14 bg-neutral-100 text-neutral-400 rounded-2xl text-[10px] font-black uppercase tracking-widest"
-                 >
-                    Abort
-                 </button>
-              </div>
-           </motion.div>
-        </div>
-      )}
     </div>
   );
 }

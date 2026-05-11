@@ -3,7 +3,6 @@ import { QrCode, ArrowRight, Barcode as BarcodeIcon, Camera, Repeat, Shield, Use
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
 import { subscribeToRecentActivities, Activity } from '../services/activityService';
-import RewardedAd from './ui/RewardedAd';
 
 interface ToolCardProps {
   id: string;
@@ -86,7 +85,7 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
   }, [user]);
 
   const handleUnlockAll = () => {
-    setShowInterstitial(true);
+    onUnlockAll?.();
   };
 
   const categories = [
@@ -317,21 +316,21 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
             </div>
           )}
 
-          {/* Ad Slot - Support & Unlock All */}
+          {/* Support Section */}
           {!isVip && (
             <div className="bg-rose-600 rounded-[2rem] p-6 shadow-xl shadow-rose-600/20 flex items-center justify-between group overflow-hidden relative">
                <div className="relative z-10">
-                  <span className="text-[8px] font-black text-rose-200 uppercase tracking-[0.4em] block mb-2">PROMOTION</span>
-                  <h5 className="text-xs font-bold text-white mb-1 uppercase tracking-tight">Unlock all tools</h5>
+                  <span className="text-[8px] font-black text-rose-200 uppercase tracking-[0.4em] block mb-2">UPGRADE</span>
+                  <h5 className="text-xs font-bold text-white mb-1 uppercase tracking-tight">Support Aether Pro</h5>
                   <button 
-                    onClick={handleUnlockAll}
+                    onClick={() => onSelectTool('settings')}
                     className="mt-3 text-[10px] font-black uppercase tracking-widest bg-white text-rose-600 px-4 py-2 rounded-xl flex items-center gap-2 hover:scale-105 transition-transform"
                   >
-                    <PlayCircle size={14} /> Unlock via Ad
+                    <Sparkles size={14} /> Get VIP Access
                   </button>
                </div>
                <div className="w-20 h-20 bg-white/10 rounded-2xl flex items-center justify-center text-white/20 rotate-6 group-hover:rotate-12 transition-transform">
-                  <Sparkles size={32} />
+                  <Shield size={32} />
                </div>
             </div>
           )}
@@ -398,17 +397,6 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
       </footer>
 
       <AnimatePresence>
-        {showInterstitial && (
-          <RewardedAd 
-            adUnitId="ca-app-pub-5861878697571557/9660632124"
-            type="rewarded_interstitial"
-            onReward={() => {
-              setShowInterstitial(false);
-              onUnlockAll?.();
-            }}
-            onClose={() => setShowInterstitial(false)}
-          />
-        )}
       </AnimatePresence>
     </div>
   );
