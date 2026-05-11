@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { LogIn, Sparkles, ShieldCheck, Zap, Mail, Lock, User, ArrowRight, Chrome, AlertCircle } from 'lucide-react';
+import { LogIn, Sparkles, ShieldCheck, Zap, Mail, Lock, User, ArrowRight, Chrome, AlertCircle, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
-export default function LoginOverlay() {
+export default function LoginOverlay({ onClose }: { onClose?: () => void }) {
   const { login, loginWithEmail, registerWithEmail, sendPasswordReset } = useAuth();
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [showEmailForm, setShowEmailForm] = useState(false);
@@ -26,8 +26,21 @@ export default function LoginOverlay() {
         if (!name) throw new Error('Name is required');
         await registerWithEmail(email, password, name);
       }
+      if (onClose) onClose();
     } catch (err: any) {
       setError(err.message || 'Authentication failed');
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      await login();
+      if (onClose) onClose();
+    } catch (err: any) {
+      setError(err.message || 'Google login failed');
       setLoading(false);
     }
   };
@@ -38,7 +51,16 @@ export default function LoginOverlay() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[90vh] md:min-h-[70vh] p-4 md:p-8 text-center max-w-xl mx-auto py-12 md:py-20">
+    <div className="flex flex-col items-center justify-center min-h-[90vh] md:min-h-[70vh] p-4 md:p-8 text-center max-w-xl mx-auto py-12 md:py-20 relative">
+      {onClose && (
+        <button 
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 text-neutral-400 hover:text-neutral-900 transition-colors"
+        >
+          <X size={24} />
+        </button>
+      )}
+      
       <motion.div 
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -66,14 +88,21 @@ export default function LoginOverlay() {
               exit={{ opacity: 0, x: 20 }}
               className="space-y-4"
             >
+              {error && (
+                <div className="p-4 bg-rose-50 text-rose-600 rounded-xl flex items-center gap-3 mb-4">
+                   <AlertCircle size={16} />
+                   <span className="text-[10px] font-bold uppercase tracking-widest">{error}</span>
+                </div>
+              )}
               <button 
-                onClick={login}
-                className="w-full h-16 bg-white border border-neutral-100 rounded-2xl flex items-center justify-center gap-4 hover:border-neutral-900 transition-all group shadow-sm"
+                onClick={handleGoogleLogin}
+                disabled={loading}
+                className="w-full h-16 bg-white border border-neutral-100 rounded-2xl flex items-center justify-center gap-4 hover:border-neutral-900 transition-all group shadow-sm disabled:opacity-50"
               >
                 <div className="w-8 h-8 bg-neutral-50 rounded-lg flex items-center justify-center">
                   <Chrome size={18} className="text-neutral-900" />
                 </div>
-                <span className="text-xs font-black uppercase tracking-widest">Connect with Google</span>
+                <span className="text-xs font-black uppercase tracking-widest">{loading ? 'Connecting...' : 'Connect with Google'}</span>
               </button>
 
               <button 

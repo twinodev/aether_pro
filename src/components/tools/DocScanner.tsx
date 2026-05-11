@@ -1,8 +1,20 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Camera, RefreshCw, Download, Layers, Eraser, Maximize, RotateCcw, FileText, Image as ImageIcon, Crop, FileDown, Check } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { 
+  Camera, RefreshCw, Download, RotateCcw, FileText, Image as ImageIcon, Crop, 
+  Check, Plus, Trash2, Grid3X3, Archive, X, AlertTriangle
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
 import OfflineAlert from '../ui/OfflineAlert.tsx';
+
+interface ScannedPage {
+  id: string;
+  image: string;
+  originalImage: string;
+  filterId: string;
+  rotation: number;
+  crop: { x: number; y: number; w: number; h: number };
+}
 
 interface ScanFilter {
   name: string;
@@ -15,24 +27,31 @@ const FILTERS: ScanFilter[] = [
   { name: 'Grayscale', id: 'grayscale', css: 'grayscale brightness-110 contrast-125' },
   { name: 'B&W High', id: 'bw', css: 'contrast-[200%] brightness-[120%] grayscale' },
   { name: 'Contrast', id: 'contrast', css: 'contrast-150 brightness-110' },
+  { name: 'Vibrant', id: 'vibrant', css: 'saturate-150 brightness-110 contrast-110' },
 ];
 
 export default function DocScanner() {
+  const [pages, setPages] = useState<ScannedPage[]>([]);
+  const [activePageIndex, setActivePageIndex] = useState<number>(-1);
+  const [isCapturing, setIsCapturing] = useState(true);
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<ScanFilter>(FILTERS[0]);
-  const [rotation, setRotation] = useState(0);
+  
   const [isCropping, setIsCropping] = useState(false);
-  const [cropBox, setCropBox] = useState({ x: 10, y: 10, w: 80, h: 80 }); // Percentages
+  const [cropBox, setCropBox] = useState({ x: 10, y: 10, w: 80, h: 80 });
+  
+  const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const cropRef = useRef<HTMLDivElement>(null);
 
   const startCamera = async () => {
     try {
       setError(null);
+      setIsCapturing(true);
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
+        video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } 
       });
       setStream(mediaStream);
       if (videoRef.current) {
@@ -40,7 +59,7 @@ export default function DocScanner() {
       }
     } catch (err) {
       console.error("Error accessing camera:", err);
-      setError("Camera access denied. Please check permissions in your browser settings.");
+      setError("Camera access denied. Please check permissions.");
     }
   };
 
@@ -61,16 +80,42 @@ export default function DocScanner() {
     canvasRef.current.height = videoRef.current.videoHeight;
     context.drawImage(videoRef.current, 0, 0);
     
-    setCapturedImage(canvasRef.current.toDataURL('image/jpeg'));
+    const imageData = canvasRef.current.toDataURL('image/jpeg', 0.95);
+    
+    const newPage: ScannedPage = {
+      id: Math.random().toString(36).substring(7),
+      image: imageData,
+      originalImage: imageData,
+      filterId: 'original',
+      rotation: 0,
+      crop: { x: 0, y: 0, w: 100, h: 100 }
+    };
+
+    const newPages = [...pages, newPage];
+    setPages(newPages);
+    setActivePageIndex(newPages.length - 1);
+    setIsCapturing(false);
     stopCamera();
   };
 
+  const deletePage = (index: number) => {
+    const newPages = pages.filter((_, i) => i !== index);
+    setPages(newPages);
+    if (newPages.length === 0) {
+      setIsCapturing(true);
+      startCamera();
+    } else if (activePageIndex === index) {
+      setActivePageIndex(Math.max(0, index - 1));
+    }
+  };
+
   const applyCrop = () => {
-    if (!capturedImage || !canvasRef.current) return;
+    if (activePageIndex === -1) return;
     
+    const page = pages[activePageIndex];
     const img = new Image();
     img.onload = () => {
-      const canvas = canvasRef.current!;
+      const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d')!;
       
       const realX = (cropBox.x / 100) * img.width;
@@ -82,147 +127,337 @@ export default function DocScanner() {
       canvas.height = realH;
       ctx.drawImage(img, realX, realY, realW, realH, 0, 0, realW, realH);
       
-      setCapturedImage(canvas.toDataURL('image/jpeg'));
+      const newImage = canvas.toDataURL('image/jpeg', 0.9);
+      const updatedPages = [...pages];
+      updatedPages[activePageIndex] = {
+        ...page,
+        image: newImage,
+        crop: { ...cropBox }
+      };
+      setPages(updatedPages);
       setIsCropping(false);
     };
-    img.src = capturedImage;
+    img.src = page.originalImage;
   };
 
-  const rotate = () => setRotation(prev => (prev + 90) % 360);
-
-  const downloadImage = () => {
-    if (!capturedImage) return;
-    const link = document.createElement('a');
-    link.download = `scan-${Date.now()}.jpg`;
-    link.href = capturedImage;
-    link.click();
-  };
-
-  const downloadPDF = () => {
-    if (!capturedImage) return;
-    const pdf = new jsPDF();
+  const rotate = () => {
+    if (activePageIndex === -1) return;
+    const updatedPages = [...pages];
+    const page = updatedPages[activePageIndex];
+    
     const img = new Image();
     img.onload = () => {
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgRatio = img.width / img.height;
-      const pageRatio = pageWidth / pageHeight;
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d')!;
       
-      let w = pageWidth;
-      let h = pageHeight;
+      canvas.width = img.height;
+      canvas.height = img.width;
       
-      if (imgRatio > pageRatio) {
-        h = pageWidth / imgRatio;
-      } else {
-        w = pageHeight * imgRatio;
-      }
-
-      pdf.addImage(capturedImage, 'JPEG', (pageWidth - w) / 2, (pageHeight - h) / 2, w, h);
-      pdf.save(`scan-${Date.now()}.pdf`);
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(90 * Math.PI / 180);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      
+      const newImage = canvas.toDataURL('image/jpeg', 0.9);
+      updatedPages[activePageIndex] = {
+        ...page,
+        image: newImage,
+        originalImage: newImage,
+        rotation: (page.rotation + 90) % 360
+      };
+      setPages(updatedPages);
     };
-    img.src = capturedImage;
+    img.src = page.image;
+  };
+
+  const updateFilter = (filterId: string) => {
+    if (activePageIndex === -1) return;
+    const updatedPages = [...pages];
+    updatedPages[activePageIndex].filterId = filterId;
+    setPages(updatedPages);
+  };
+
+  const downloadAllAsPDF = async () => {
+    if (pages.length === 0) return;
+    setIsProcessing(true);
+    
+    try {
+      const pdf = new jsPDF();
+      for (let i = 0; i < pages.length; i++) {
+        const page = pages[i];
+        if (i > 0) pdf.addPage();
+        
+        const img = new Image();
+        await new Promise((resolve) => {
+          img.onload = resolve;
+          img.src = page.image;
+        });
+
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const imgRatio = img.width / img.height;
+        const pageRatio = pageWidth / pageHeight;
+        
+        let w = pageWidth;
+        let h = pageHeight;
+        if (imgRatio > pageRatio) {
+          h = pageWidth / imgRatio;
+        } else {
+          w = pageHeight * imgRatio;
+        }
+
+        const filter = FILTERS.find(f => f.id === page.filterId);
+        // JS PDF doesn't support CSS filters easily, but B&W/Grayscale can be done in canvas if needed.
+        // For now we add the image as is.
+        pdf.addImage(page.image, 'JPEG', (pageWidth - w) / 2, (pageHeight - h) / 2, w, h);
+      }
+      pdf.save(`aether-scan-${Date.now()}.pdf`);
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Dragging logic for crop box
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [handleType, setHandleType] = useState<string | null>(null);
+
+  const handleMouseDown = (e: React.MouseEvent, type: string) => {
+    e.preventDefault();
+    setDragStart({ x: e.clientX, y: e.clientY });
+    setHandleType(type);
+  };
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!dragStart || !handleType || !cropRef.current) return;
+    const parent = cropRef.current.parentElement!;
+    const parentRect = parent.getBoundingClientRect();
+    const dx = ((e.clientX - dragStart.x) / parentRect.width) * 100;
+    const dy = ((e.clientY - dragStart.y) / parentRect.height) * 100;
+    setDragStart({ x: e.clientX, y: e.clientY });
+    setCropBox(prev => {
+      let { x, y, w, h } = prev;
+      switch (handleType) {
+        case 'tl': x += dx; y += dy; w -= dx; h -= dy; break;
+        case 'tr': y += dy; w += dx; h -= dy; break;
+        case 'bl': x += dx; w -= dx; h += dy; break;
+        case 'br': w += dx; h += dy; break;
+        case 'move': x += dx; y += dy; break;
+      }
+      const newW = Math.max(5, Math.min(100 - x, w));
+      const newH = Math.max(5, Math.min(100 - y, h));
+      const newX = Math.max(0, Math.min(100 - newW, x));
+      const newY = Math.max(0, Math.min(100 - newH, y));
+      return { x: newX, y: newY, w: newW, h: newH };
+    });
+  }, [dragStart, handleType]);
+
+  const handleMouseUp = () => {
+    setDragStart(null);
+    setHandleType(null);
   };
 
   useEffect(() => {
-    startCamera();
+    if (dragStart) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [dragStart, handleMouseMove]);
+
+  useEffect(() => {
+    if (isCapturing) {
+      startCamera();
+    } else {
+      stopCamera();
+    }
     return () => stopCamera();
-  }, []);
+  }, [isCapturing]);
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-8">
-      <header className="mb-12">
-        <OfflineAlert toolName="Document Intelligence" />
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-neutral-900 text-white rounded-lg">
-            <FileText size={24} />
+    <div className="max-w-6xl mx-auto p-4 md:p-8">
+      <header className="mb-8 font-sans">
+        <OfflineAlert toolName="Document Intelligence v2" />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-lg">
+                <FileText size={24} />
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight">Intelligence Scanner</h1>
+            </div>
+            <p className="text-neutral-500 text-sm">Next-gen multi-page document capture and refinement.</p>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Doc Scanner</h1>
+          
+          {pages.length > 0 && (
+            <div className="flex items-center gap-4">
+              <div className="flex flex-col items-end">
+                <span className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Captured Pages</span>
+                <span className="text-lg font-black">{pages.length}</span>
+              </div>
+              <button 
+                onClick={downloadAllAsPDF}
+                disabled={isProcessing}
+                className="btn-primary px-6 h-12 flex items-center gap-2 shadow-xl shadow-rose-500/20"
+              >
+                {isProcessing ? <RefreshCw size={18} className="animate-spin" /> : <Archive size={18} />}
+                Export PDF
+              </button>
+            </div>
+          )}
         </div>
-        <p className="text-neutral-500">Capture and enhance document copies instantly.</p>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Main Viewport */}
-        <div className="lg:col-span-3 space-y-6">
-          <div className="relative aspect-[3/4] bg-neutral-100 rounded-3xl overflow-hidden shadow-2xl border-4 border-white">
-            {error && (
-              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white p-8 text-center gap-4">
-                <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center">
-                  <Camera size={32} />
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Library Column */}
+        <div className="lg:col-span-3 space-y-4 font-sans">
+          <div className="flex items-center justify-between px-2">
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Library</h3>
+            <button onClick={() => { setIsCapturing(true); setActivePageIndex(-1); }} className="text-[10px] font-black uppercase tracking-widest text-rose-500 flex items-center gap-1 hover:scale-105 transition-transform">
+              <Plus size={12} /> Add Page
+            </button>
+          </div>
+          
+          <div className="space-y-3 lg:h-[600px] overflow-y-auto pr-2 scrollbar-hide flex lg:flex-col gap-3 lg:gap-0">
+            {pages.map((page, idx) => (
+              <motion.div 
+                key={page.id}
+                layoutId={page.id}
+                onClick={() => { setActivePageIndex(idx); setIsCapturing(false); }}
+                className={`relative aspect-[3/4] min-w-[120px] lg:min-w-0 rounded-2xl overflow-hidden cursor-pointer border-2 transition-all group shrink-0 ${
+                  activePageIndex === idx ? 'border-neutral-900 dark:border-white shadow-xl' : 'border-transparent opacity-60 hover:opacity-100'
+                }`}
+              >
+                <img src={page.image} className="w-full h-full object-cover" alt={`Page ${idx + 1}`} />
+                <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/60 to-transparent flex justify-between items-center">
+                  <span className="text-[10px] font-bold text-white uppercase tracking-widest">Page {idx + 1}</span>
                 </div>
-                <p className="text-sm font-medium text-red-600">{error}</p>
-                <button onClick={startCamera} className="btn-secondary text-xs uppercase tracking-widest font-bold">Try Again</button>
+              </motion.div>
+            ))}
+            {pages.length === 0 && (
+              <div className="w-full h-full border-2 border-dashed border-neutral-100 dark:border-neutral-800 rounded-[2rem] flex flex-col items-center justify-center text-neutral-300 p-8 text-center min-h-[200px]">
+                <Grid3X3 size={40} className="mb-4 opacity-20" />
+                <p className="text-[10px] font-black uppercase tracking-widest leading-relaxed">No data captured yet.</p>
               </div>
             )}
-            {!capturedImage ? (
-              <>
-                <video 
-                  ref={videoRef} 
-                  autoPlay 
-                  playsInline 
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-x-8 top-16 bottom-16 border-2 border-white/50 border-dashed rounded-xl pointer-events-none">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-16 h-16 border-t-2 border-l-2 border-white/80 absolute top-0 left-0" />
-                    <div className="w-16 h-16 border-t-2 border-r-2 border-white/80 absolute top-0 right-0" />
-                    <div className="w-16 h-16 border-b-2 border-l-2 border-white/80 absolute bottom-0 left-0" />
-                    <div className="w-16 h-16 border-b-2 border-r-2 border-white/80 absolute bottom-0 right-0" />
-                  </div>
-                </div>
-                <div className="absolute bottom-8 inset-x-0 flex justify-center">
-                  <button 
-                    onClick={captureFrame}
-                    className="w-16 h-16 bg-white rounded-full border-4 border-white/30 flex items-center justify-center shadow-xl active:scale-95 transition-transform"
-                  >
-                    <div className="w-12 h-12 border-2 border-neutral-900 rounded-full" />
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="relative w-full h-full bg-neutral-900 flex items-center justify-center overflow-hidden">
-                <motion.img 
-                  animate={{ rotate: rotation }}
-                  src={capturedImage} 
-                  className={`max-w-full max-h-full object-contain ${activeFilter.css} transition-all duration-300`}
-                  alt="Scanned doc"
-                />
-                
-                {isCropping && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                    <div 
-                      className="border-2 border-white ring-1 ring-black/50 shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] cursor-move transition-all"
-                      style={{
-                        position: 'absolute',
-                        left: `${cropBox.x}%`,
-                        top: `${cropBox.y}%`,
-                        width: `${cropBox.w}%`,
-                        height: `${cropBox.h}%`
-                      }}
-                    >
-                      <div className="absolute -top-1 -left-1 w-3 h-3 bg-white" />
-                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-white" />
-                      <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-white" />
-                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-white" />
+          </div>
+        </div>
+
+        {/* Editor Column */}
+        <div className="lg:col-span-6 space-y-6">
+          <div className="relative aspect-[3/4] bg-neutral-100 dark:bg-neutral-900 rounded-[2.5rem] overflow-hidden shadow-2xl border-4 lg:border-8 border-white dark:border-neutral-800">
+            <AnimatePresence mode="wait">
+              {isCapturing ? (
+                <motion.div 
+                  key="shutter"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="w-full h-full relative"
+                >
+                  <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-[85%] h-[85%] border-2 border-white/40 border-dashed rounded-2xl relative">
+                      <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-rose-500 rounded-tl-xl" />
+                      <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-rose-500 rounded-tr-xl" />
+                      <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-rose-500 rounded-bl-xl" />
+                      <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-rose-500 rounded-br-xl" />
                     </div>
                   </div>
-                )}
-              </div>
-            )}
-            
+                  <div className="absolute bottom-8 inset-x-0 flex justify-center items-center gap-6">
+                     <button 
+                       onClick={captureFrame}
+                       className="w-20 h-20 bg-white rounded-full border-4 border-rose-500/30 flex items-center justify-center shadow-2xl active:scale-90 transition-transform group"
+                     >
+                       <div className="w-16 h-16 border-2 border-neutral-900 rounded-full group-hover:scale-95 transition-transform" />
+                     </button>
+                  </div>
+                  {error && (
+                    <div className="absolute inset-0 bg-white dark:bg-neutral-900 z-50 flex flex-col items-center justify-center p-12 text-center gap-4">
+                      <AlertTriangle size={48} className="text-rose-500" />
+                      <p className="text-sm font-bold text-neutral-900 dark:text-white">{error}</p>
+                      <button onClick={startCamera} className="btn-primary px-8">Grant Camera Access</button>
+                    </div>
+                  )}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key={activePageIndex === -1 ? 'empty' : pages[activePageIndex]?.id}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="relative w-full h-full flex items-center justify-center bg-neutral-900 group"
+                >
+                  {activePageIndex !== -1 && pages[activePageIndex] && (
+                    <>
+                      <img 
+                        src={isCropping ? pages[activePageIndex].originalImage : pages[activePageIndex].image} 
+                        className={`max-w-full max-h-full object-contain ${FILTERS.find(f => f.id === pages[activePageIndex].filterId)?.css || ''} transition-all duration-300`}
+                        alt="Editing doc"
+                      />
+                      {isCropping && (
+                        <div className="absolute inset-0 bg-black/60 z-10 flex items-center justify-center">
+                          <div className="relative w-full h-full flex items-center justify-center">
+                             <div 
+                               ref={cropRef}
+                               style={{
+                                 position: 'absolute',
+                                 left: `${cropBox.x}%`,
+                                 top: `${cropBox.y}%`,
+                                 width: `${cropBox.w}%`,
+                                 height: `${cropBox.h}%`
+                               }}
+                               className="border-2 border-rose-500 ring-1 ring-white/50 shadow-[0_0_1000px_1000px_rgba(0,0,0,0.5)] z-20"
+                             >
+                                <div onMouseDown={(e) => handleMouseDown(e, 'move')} className="absolute inset-0 cursor-move" />
+                                {['tl', 'tr', 'bl', 'br'].map(pos => (
+                                  <div 
+                                    key={pos}
+                                    onMouseDown={(e) => handleMouseDown(e, pos)}
+                                    className={`absolute w-6 h-6 bg-white border-2 border-rose-500 rounded-full cursor-pointer z-30 flex items-center justify-center
+                                      ${pos === 'tl' ? '-top-3 -left-3' : pos === 'tr' ? '-top-3 -right-3' : pos === 'bl' ? '-bottom-3 -left-3' : '-bottom-3 -right-3'}`}
+                                  >
+                                    <div className="w-1.5 h-1.5 bg-rose-500 rounded-full" />
+                                  </div>
+                                ))}
+                             </div>
+                          </div>
+                        </div>
+                      )}
+                      {!isCropping && (
+                        <div className="absolute top-6 left-6 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={rotate} className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl backdrop-blur-md transition-colors">
+                            <RotateCcw size={20} />
+                          </button>
+                          <button onClick={() => setIsCropping(true)} className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl backdrop-blur-md transition-colors">
+                            <Crop size={20} />
+                          </button>
+                          <button onClick={() => deletePage(activePageIndex)} className="p-3 bg-rose-500/20 hover:bg-rose-500 text-white rounded-2xl backdrop-blur-md transition-colors">
+                            <Trash2 size={20} />
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
             <canvas ref={canvasRef} className="hidden" />
           </div>
 
-          {capturedImage && (
-            <div className="flex gap-2 shrink-0 overflow-x-auto pb-2">
+          {!isCapturing && activePageIndex !== -1 && (
+            <div className="flex gap-2 p-2 bg-white dark:bg-neutral-800 rounded-2xl border border-neutral-100 dark:border-neutral-700 overflow-x-auto scrollbar-hide font-sans">
               {FILTERS.map((f) => (
                 <button
                   key={f.id}
-                  onClick={() => setActiveFilter(f)}
-                  className={`px-4 py-2 rounded-full border text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap ${
-                    activeFilter.id === f.id 
-                      ? 'bg-neutral-900 border-neutral-900 text-white' 
-                      : 'bg-white border-neutral-200 text-neutral-400'
+                  onClick={() => updateFilter(f.id)}
+                  className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                    pages[activePageIndex].filterId === f.id 
+                      ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 border-none' 
+                      : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-400 hover:text-neutral-600'
                   }`}
                 >
                   {f.name}
@@ -232,57 +467,41 @@ export default function DocScanner() {
           )}
         </div>
 
-        {/* Controls Panel */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white border-2 border-neutral-100 rounded-3xl p-6 space-y-4 shadow-sm">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Controls</h3>
-            
-            <div className="grid grid-cols-1 gap-2">
-              {capturedImage ? (
-                <>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button onClick={downloadImage} className="btn-primary w-full shadow-lg shadow-neutral-900/10">
-                      <Download size={18} /> JPG
-                    </button>
-                    <button onClick={downloadPDF} className="btn-primary w-full shadow-lg shadow-neutral-900/10 flex items-center justify-center gap-2">
-                      <FileDown size={18} /> PDF
-                    </button>
-                  </div>
-                  
-                  {isCropping ? (
-                    <button onClick={applyCrop} className="btn-secondary w-full bg-emerald-50 text-emerald-600 border-emerald-100">
-                      <Check size={18} /> Apply Crop
-                    </button>
-                  ) : (
-                    <button onClick={() => setIsCropping(true)} className="btn-secondary w-full">
-                      <Crop size={18} /> Crop Tool
-                    </button>
-                  )}
-                  
-                  <button onClick={rotate} className="btn-secondary w-full">
-                    <RotateCcw size={18} /> Rotate 90°
-                  </button>
-                  <button onClick={() => { setCapturedImage(null); startCamera(); setIsCropping(false); }} className="btn-secondary w-full text-red-500 border-red-50 transition-colors">
-                    <Eraser size={18} /> Retake
-                  </button>
-                </>
+        {/* Right Column: Actions */}
+        <div className="lg:col-span-3 space-y-6 font-sans">
+          <section className="bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-[2.5rem] p-8 space-y-6 shadow-sm">
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Operations</h3>
+            <div className="space-y-3">
+              {isCropping ? (
+                <button onClick={applyCrop} className="w-full py-4 bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-transform flex items-center justify-center gap-2">
+                  <Check size={16} /> Confirm Crop
+                </button>
               ) : (
-                <button onClick={startCamera} className="btn-secondary w-full">
-                  <Camera size={18} /> Wake Camera
+                <button onClick={() => setIsCapturing(true)} className="w-full py-4 bg-rose-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-lg shadow-rose-500/20">
+                  <Plus size={16} /> Add New Page
+                </button>
+              )}
+              {!isCropping && activePageIndex !== -1 && (
+                <button onClick={() => setIsCropping(true)} className="w-full py-4 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-200 transition-colors flex items-center justify-center gap-2">
+                  <Crop size={16} /> Refine Crop
                 </button>
               )}
             </div>
-          </div>
+          </section>
 
-          <div className="bg-blue-50 border border-blue-100 rounded-3xl p-6 space-y-3">
-            <div className="flex items-center gap-2 text-blue-900">
-              <Layers size={20} />
-              <span className="text-xs font-bold uppercase tracking-widest">Scanner Tips</span>
-            </div>
-            <p className="text-[11px] leading-relaxed text-blue-700/80">
-              For best results, place your document on a high-contrast background. Use the "B&W High" filter for text documents and "Crop" to remove messy edges.
-            </p>
-          </div>
+          <section className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 rounded-[2.5rem] p-8 space-y-4">
+             <div className="flex items-center gap-2 mb-2">
+                <ImageIcon size={16} className="text-neutral-400" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Scanner Info</span>
+             </div>
+             <p className="text-[10px] text-neutral-500 uppercase tracking-widest leading-relaxed">
+               This edge-ready scanner allows for high resolution multi-page document capture with real-time perspective correction and enhancement filters.
+             </p>
+             <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800">
+                <p className="text-[9px] font-bold text-neutral-400 uppercase">Pro Tip</p>
+                <p className="text-[10px] text-neutral-500">Hold the camera steady for 1 second before capturing to ensure focus.</p>
+             </div>
+          </section>
         </div>
       </div>
     </div>

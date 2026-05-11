@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { QrCode, ArrowRight, Barcode as BarcodeIcon, Camera, Repeat, Shield, Users, FileText, Clock, Sparkles, FileImage, Check, Globe, Tickets, PlayCircle } from 'lucide-react';
+import { QrCode, ArrowRight, Barcode as BarcodeIcon, Camera, Repeat, Shield, Users, FileText, Clock, Sparkles, FileImage, Check, Globe, Tickets, PlayCircle, Link as LinkIcon, Terminal } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
 import { subscribeToRecentActivities, Activity } from '../services/activityService';
@@ -15,37 +15,58 @@ interface ToolCardProps {
   key?: React.Key;
 }
 
-const ToolCard = ({ id, title, description, icon, onClick, color = 'bg-neutral-900' }: ToolCardProps) => (
-  <motion.button
-    variants={{
-      hidden: { opacity: 0, y: 20 },
-      visible: { opacity: 1, y: 0 }
-    }}
-    whileHover={{ y: -6, scale: 1.01 }}
-    whileTap={{ scale: 0.99 }}
-    onClick={() => onClick(id)}
-    className="card group relative flex h-full min-h-[220px] w-full flex-col overflow-hidden border-2 border-neutral-100 dark:border-neutral-800 p-8 text-left transition-all duration-300 hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-2xl hover:shadow-black/5 dark:hover:shadow-white/5"
-  >
-    {/* Background Pattern */}
-    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none">
-       <div className={`absolute -right-12 -top-12 w-64 h-64 rounded-full blur-[80px] opacity-10 ${color}`} />
-    </div>
-    
-    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white transition-all duration-500 group-hover:scale-110 group-hover:rotate-6 group-hover:shadow-xl shadow-lg shadow-black/5 z-10 ${color}`}>
-      {icon}
-    </div>
-    
-    <div className="mt-8 space-y-3 z-10">
-      <h3 className="font-black text-2xl group-hover:text-neutral-900 dark:group-hover:text-white transition-colors uppercase tracking-tighter leading-none">{title}</h3>
-      <p className="text-neutral-500 dark:text-neutral-400 text-sm leading-relaxed font-medium line-clamp-2">{description}</p>
-    </div>
+const ToolCard = ({ id, title, description, icon, onClick, color = 'bg-neutral-900' }: ToolCardProps) => {
+  const [copied, setCopied] = useState(false);
 
-    <div className="mt-auto pt-8 flex items-center justify-between z-10">
-      <span className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-300 dark:text-neutral-600 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors">Launch Tool</span>
-      <ArrowRight size={20} className="text-neutral-200 dark:text-neutral-800 group-hover:text-neutral-900 dark:group-hover:text-white group-hover:translate-x-1 transition-all" />
-    </div>
-  </motion.button>
-);
+  const copyLink = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/#/${id}`;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <motion.button
+      variants={{
+        hidden: { opacity: 0, y: 20 },
+        visible: { opacity: 1, y: 0 }
+      }}
+      whileHover={{ y: -6, scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+      onClick={() => onClick(id)}
+      className="card group relative flex h-full min-h-[220px] w-full flex-col overflow-hidden border-2 border-neutral-100 dark:border-neutral-800 p-8 text-left transition-all duration-300 hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-2xl hover:shadow-black/5 dark:hover:shadow-white/5"
+    >
+      {/* Background Pattern */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none">
+         <div className={`absolute -right-12 -top-12 w-64 h-64 rounded-full blur-[80px] opacity-10 ${color}`} />
+      </div>
+      
+      <div className="flex items-start justify-between z-10 w-full">
+        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white transition-all duration-500 group-hover:scale-110 group-hover:rotate-6 group-hover:shadow-xl shadow-lg shadow-black/5 ${color}`}>
+          {icon}
+        </div>
+        <button 
+          onClick={copyLink}
+          className="p-3 bg-neutral-100 dark:bg-neutral-800 rounded-xl text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-all opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95"
+          title="Copy direct link"
+        >
+          {copied ? <Check size={16} className="text-emerald-500" /> : <LinkIcon size={16} />}
+        </button>
+      </div>
+      
+      <div className="mt-8 space-y-3 z-10">
+        <h3 className="font-black text-2xl group-hover:text-neutral-900 dark:group-hover:text-white transition-colors uppercase tracking-tighter leading-none">{title}</h3>
+        <p className="text-neutral-500 dark:text-neutral-400 text-sm leading-relaxed font-medium line-clamp-2">{description}</p>
+      </div>
+
+      <div className="mt-auto pt-8 flex items-center justify-between z-10">
+        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-300 dark:text-neutral-600 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors">Launch Tool</span>
+        <ArrowRight size={20} className="text-neutral-200 dark:text-neutral-800 group-hover:text-neutral-900 dark:group-hover:text-white group-hover:translate-x-1 transition-all" />
+      </div>
+    </motion.button>
+  );
+};
 
 export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id: string) => void, onUnlockAll?: () => void }) {
   const { user, isVip } = useAuth();
@@ -168,6 +189,14 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
       description: 'Strip EXIF data and anonymize image assets.',
       icon: <Shield size={24} />,
       color: 'bg-emerald-600'
+    },
+    {
+      id: 'dev-toolbox',
+      title: 'Dev Toolbox',
+      description: 'JSON, Base64, and JWT utilities for engineers.',
+      icon: <Terminal size={24} />,
+      color: 'bg-neutral-900',
+      featured: true
     }
   ];
 

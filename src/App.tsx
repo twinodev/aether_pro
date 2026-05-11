@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, LayoutGrid, Settings, HelpCircle, Menu, X, QrCode, Barcode, Camera, Sparkles, Repeat, Shield, Users, FileText, Mic, LogOut, FileImage, Globe, Tickets, Home as HomeIcon, Search as SearchIcon } from 'lucide-react';
+import { ChevronLeft, LayoutGrid, Settings, HelpCircle, Menu, X, QrCode, Barcode, Camera, Sparkles, Repeat, Shield, Users, FileText, Mic, LogOut, FileImage, Globe, Tickets, Home as HomeIcon, Search as SearchIcon, Terminal } from 'lucide-react';
 import Home from './components/Home.tsx';
 import QRBuilder from './components/tools/QRBuilder.tsx';
 import BarcodeBuilder from './components/tools/BarcodeBuilder.tsx';
@@ -16,6 +16,7 @@ import TicketingTool from './components/tools/TicketingTool.tsx';
 import OcrTool from './components/tools/OcrTool.tsx';
 import PdfMaster from './components/tools/PdfMaster.tsx';
 import PrivacyGuard from './components/tools/PrivacyGuard.tsx';
+import DevToolbox from './components/tools/DevToolbox.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import SettingsView from './components/SettingsView.tsx';
 
@@ -28,7 +29,7 @@ import { User as UserIcon } from 'lucide-react';
 
 const PREMIUM_VIEWS: string[] = ['phone-sorter', 'file-converter', 'image-compressor', 'ip-intelligence', 'ticketing', 'pdf-master'];
 
-type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'doc-scanner' | 'file-converter' | 'image-compressor' | 'ip-intelligence' | 'ticketing' | 'ocr-tool' | 'pdf-master' | 'privacy-guard' | 'settings' | 'admin';
+type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'doc-scanner' | 'file-converter' | 'image-compressor' | 'ip-intelligence' | 'ticketing' | 'ocr-tool' | 'pdf-master' | 'privacy-guard' | 'dev-toolbox' | 'settings' | 'admin';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<View>('home');
@@ -38,13 +39,28 @@ export default function App() {
   const [pendingView, setPendingView] = useState<View | null>(null);
   const [unlockedTools, setUnlockedTools] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const [showLogin, setShowLogin] = useState(false);
   const { user, login, logout, loading, isVip, isAdmin } = useAuth();
 
-  // Notification setup
+  // Notification and Hash Sync setup
   React.useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
+
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#/', '');
+      if (hash && navItems.some(item => item.id === hash)) {
+        setCurrentView(hash as View);
+      } else if (!hash) {
+        setCurrentView('home');
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    handleHashChange(); // Run once on mount
+
+    return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
   const navigateTo = (view: string) => {
@@ -63,6 +79,8 @@ export default function App() {
       return;
     }
 
+    // Update Hash instead of just state
+    window.location.hash = view === 'home' ? '' : `/${view}`;
     setCurrentView(view as View);
     setIsMenuOpen(false);
     window.scrollTo(0, 0);
@@ -91,9 +109,9 @@ export default function App() {
   }
 
   const renderView = () => {
-    // If user is not logged in and is not on home, show login overlay
-    if (!user && currentView !== 'home') {
-      return <LoginOverlay />;
+    // If user is not logged in and is not on home or explicitly showing login, show login overlay
+    if (!user && (currentView !== 'home' || showLogin)) {
+      return <LoginOverlay onClose={() => setShowLogin(false)} />;
     }
 
     return (
@@ -151,6 +169,8 @@ export default function App() {
               return <PdfMaster />;
             case 'privacy-guard':
               return <PrivacyGuard />;
+            case 'dev-toolbox':
+              return <DevToolbox />;
             case 'settings':
               return <SettingsView />;
             case 'admin':
@@ -180,6 +200,7 @@ export default function App() {
     { id: 'converter', label: 'Unit Conv', icon: Repeat },
     { id: 'vault', label: 'Vault', icon: Shield },
     { id: 'phone-sorter', label: 'Phone Sorter', icon: Users },
+    { id: 'dev-toolbox', label: 'Dev Toolbox', icon: Terminal },
   ];
 
   const filteredNavItems = navItems.filter(item => {
@@ -333,7 +354,7 @@ export default function App() {
                </div>
             ) : (
               <button 
-                onClick={login}
+                onClick={() => setShowLogin(true)}
                 className="btn-primary h-10 px-4 flex items-center gap-2 rounded-xl"
               >
                 <span className="text-[10px] font-black uppercase tracking-widest">Connect</span>
