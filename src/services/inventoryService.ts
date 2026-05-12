@@ -1,6 +1,7 @@
 import { 
   collection, 
   doc, 
+  getDoc,
   setDoc, 
   addDoc, 
   updateDoc, 
@@ -25,6 +26,7 @@ export interface Product {
   cost: number;
   unit: string;
   imageUrl?: string;
+  ownerId: string;
   createdAt: any;
 }
 
@@ -54,9 +56,23 @@ export interface Sale {
   timestamp: any;
 }
 
+export interface Membership {
+  userId: string;
+  email?: string;
+  role: 'manager' | 'cashier';
+  addedAt: any;
+}
+
+export interface ScanRecord {
+  code: string;
+  locationId: string;
+  userId: string;
+  scannedAt: any;
+}
+
 // Product Services
-export const subscribeToProducts = (callback: (products: Product[]) => void) => {
-  const q = query(collection(db, 'products'));
+export const subscribeToProducts = (ownerId: string, callback: (products: Product[]) => void) => {
+  const q = query(collection(db, 'products'), where('ownerId', '==', ownerId));
   return onSnapshot(q, (snapshot) => {
     callback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Product[]);
   }, (err) => handleFirestoreError(err, OperationType.LIST, 'products'));
@@ -70,6 +86,15 @@ export const createProduct = async (product: Omit<Product, 'id' | 'createdAt'>) 
     });
   } catch (err) {
     handleFirestoreError(err, OperationType.CREATE, 'products');
+  }
+};
+
+export const updateProduct = async (productId: string, updates: Partial<Product>) => {
+  try {
+    const productRef = doc(db, 'products', productId);
+    await updateDoc(productRef, updates);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `products/${productId}`);
   }
 };
 
@@ -151,5 +176,63 @@ export const recordSale = async (sale: Omit<Sale, 'id' | 'timestamp'>) => {
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `locations/${sale.locationId}/sales`);
     throw err;
+  }
+};
+
+// Membership Services
+export const subscribeToMemberships = (locationId: string, callback: (memberships: Membership[]) => void) => {
+  const q = collection(db, 'locations', locationId, 'memberships');
+  return onSnapshot(q, (snapshot) => {
+    callback(snapshot.docs.map(doc => ({ ...doc.data() })) as Membership[]);
+  }, (err) => handleFirestoreError(err, OperationType.LIST, `locations/${locationId}/memberships`));
+};
+
+export const addMembership = async (locationId: string, userId: string, role: 'manager' | 'cashier', email?: string) => {
+  try {
+    const memRef = doc(db, 'locations', locationId, 'memberships', userId);
+    await setDoc(memRef, {
+      userId,
+      role,
+      email: email || '',
+      addedAt: serverTimestamp()
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, `locations/${locationId}/memberships/${userId}`);
+  }
+};
+
+export const removeMembership = async (locationId: string, userId: string) => {
+  try {
+    const memRef = doc(db, 'locations', locationId, 'memberships', userId);
+    await deleteDoc(memRef);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `locations/${locationId}/memberships/${userId}`);
+  }
+};
+
+// Scan Services
+export const validateScan = async (locationId: string, userId: string, code: string): Promise<{ success: boolean, alreadyScanned: boolean }> => {
+  try {
+    // We use the code as the document ID (safely handled by Firestore for standard barcodes)
+    // If the barcode contains invalid characters, we might need to hash it, but for retail it's usually fine.
+    const scanRef = doc(db, 'locations', locationId, 'scans', code);
+    const scanSnap = await getDoc(scanRef);
+
+    if (scanSnap.exists()) {
+      return { success: false, alreadyScanned: true };
+    }
+
+    // Record the first scan
+    await setDoc(scanRef, {
+      code,
+      locationId,
+      userId,
+      scannedAt: serverTimestamp()
+    });
+
+    return { success: true, alreadyScanned: false };
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `locations/${locationId}/scans/${code}`);
+    return { success: false, alreadyScanned: false };
   }
 };

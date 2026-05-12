@@ -1,9 +1,8 @@
 {
-  "name": "Aether Pro",
-  "description": "Aether Pro is a precision-engineered suite of utility tools including high-fidelity ticketing, number intelligence, and financial forensics. Powered by cutting-edge web technologies, it offers high-performance digital solutions with zero latency.",
+  "name": "Duka Sync",
+  "description": "A streamlined retail tool for inventory management, POS efficiency, and clear financial reporting for distributed small businesses.",
   "requestFramePermissions": [
-    "camera",
-    "microphone"
+    "camera"
   ],
   "majorCapabilities": []
 }

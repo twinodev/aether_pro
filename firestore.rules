@@ -8,9 +8,10 @@ service cloud.firestore {
 
     // Global Helpers
     function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
     function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
     function isAdmin() { 
-      return isSignedIn() && (
+      return isVerified() && (
         request.auth.token.email == 'tjuniemma@gmail.com'
       ); 
     }
@@ -39,16 +40,19 @@ service cloud.firestore {
       allow get: if isOwner(uid) || isAdmin();
       allow list: if isAdmin();
       
-      allow create: if isSignedIn() && (uid == request.auth.uid)
+      allow create: if isVerified() && (uid == request.auth.uid)
         && isValidUserProfile(incoming())
         && (incoming().isAdmin == false || isAdmin())
         && (incoming().isVip == false || isAdmin());
         
-      allow update: if (isOwner(uid) || isAdmin())
+      allow update: if (isVerified() && (uid == request.auth.uid) || isAdmin())
         && isValidUserProfile(incoming())
-        && incoming().get('uid', '') == existing().get('uid', '')
-        && incoming().get('email', '') == existing().get('email', '')
-        && (isAdmin() || (incoming().get('isVip', false) == existing().get('isVip', false) && incoming().get('isAdmin', false) == existing().get('isAdmin', false)));
+        && (isAdmin() || (
+             incoming().get('uid', '') == existing().get('uid', '') &&
+             incoming().get('email', '') == existing().get('email', '') &&
+             incoming().get('isVip', false) == existing().get('isVip', false) &&
+             incoming().get('isAdmin', false) == existing().get('isAdmin', false)
+           ));
         
       match /activities/{activityId} {
         function isValidActivity(data) {
@@ -59,7 +63,7 @@ service cloud.firestore {
         }
 
         allow list: if isOwner(uid) || isAdmin();
-        allow create: if isOwner(uid) 
+        allow create: if isVerified() && (uid == request.auth.uid) 
           && isValidActivity(incoming())
           && incoming().timestamp == request.time;
       }
@@ -107,6 +111,7 @@ service cloud.firestore {
         && (data.cost is number || data.cost == null || !('cost' in data))
         && (data.unit is string || data.unit == null || !('unit' in data))
         && (data.imageUrl is string || data.imageUrl == null || !('imageUrl' in data))
+        && (data.ownerId == request.auth.uid || isAdmin())
         && (data.createdAt is timestamp || data.createdAt == null || !('createdAt' in data));
     }
 
@@ -134,31 +139,62 @@ service cloud.firestore {
         && (data.timestamp is timestamp || data.timestamp == null || !('timestamp' in data));
     }
 
+    function isValidMembership(data) {
+      return data.userId is string
+        && data.role in ['manager', 'cashier']
+        && (data.email is string || !('email' in data))
+        && (data.addedAt is timestamp || !('addedAt' in data));
+    }
+
+    function isValidScan(data) {
+      return data.code is string && data.code.size() <= 256
+        && data.locationId is string
+        && (data.userId is string || !('userId' in data))
+        && data.scannedAt is timestamp;
+    }
+
     match /products/{productId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidProduct(incoming());
-      allow update, delete: if isAdmin();
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidProduct(incoming()) && incoming().ownerId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin()) && isValidProduct(incoming());
+      allow delete: if isAdmin();
     }
 
     match /locations/{locationId} {
       function isLocationOwner(locId) {
         return get(/databases/$(database)/documents/locations/$(locId)).data.ownerId == request.auth.uid;
       }
+      function hasMembership(locId) {
+        return exists(/databases/$(database)/documents/locations/$(locId)/memberships/$(request.auth.uid));
+      }
+      function getRole(locId) {
+        return get(/databases/$(database)/documents/locations/$(locId)/memberships/$(request.auth.uid)).data.role;
+      }
 
-      allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && isValidLocation(incoming());
-      allow update: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin()) && isValidLocation(incoming());
-      allow delete: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow get: if isVerified() && (resource.data.ownerId == request.auth.uid || hasMembership(locationId) || isAdmin());
+      allow list: if isVerified(); // App filters by ownerId or membership
+      allow create: if isVerified() && isValidLocation(incoming());
+      allow update: if isVerified() && (resource.data.ownerId == request.auth.uid || isAdmin()) && isValidLocation(incoming());
+      allow delete: if isAdmin();
+
+      match /memberships/{userId} {
+        allow read: if isVerified() && (isLocationOwner(locationId) || request.auth.uid == userId || isAdmin());
+        allow write: if isVerified() && (isLocationOwner(locationId) || isAdmin()) && isValidMembership(incoming());
+      }
+
+      match /scans/{scanId} {
+        allow get: if isVerified() && (isLocationOwner(locationId) || hasMembership(locationId) || isAdmin());
+        allow create: if isVerified() && (isLocationOwner(locationId) || hasMembership(locationId) || isAdmin()) && isValidScan(incoming());
+      }
 
       match /inventory/{productId} {
-        allow read: if isLocationOwner(locationId) || isAdmin();
-        allow write: if (isLocationOwner(locationId) || isAdmin()) && isValidInventoryItem(incoming());
+        allow read: if isVerified() && (isLocationOwner(locationId) || hasMembership(locationId) || isAdmin());
+        allow write: if isVerified() && (isLocationOwner(locationId) || (hasMembership(locationId) && getRole(locationId) == 'manager') || isAdmin()) && isValidInventoryItem(incoming());
       }
 
       match /sales/{saleId} {
-        allow read: if isLocationOwner(locationId) || isAdmin();
-        allow create: if isLocationOwner(locationId) && isValidSale(incoming());
+        allow read: if isVerified() && (isLocationOwner(locationId) || hasMembership(locationId) || isAdmin());
+        allow create: if isVerified() && (isLocationOwner(locationId) || hasMembership(locationId)) && isValidSale(incoming());
       }
     }
   }

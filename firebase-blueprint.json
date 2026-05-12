@@ -136,13 +136,33 @@
         "userId": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" }
       }
+    },
+    "membership": {
+      "title": "Shop Membership",
+      "description": "Staff member access for a specific location",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["manager", "cashier"] },
+        "addedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "role"]
+    },
+    "scan": {
+      "title": "Document Scan",
+      "description": "Validation record for a scanned code",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "locationId": { "type": "string" },
+        "userId": { "type": "string" },
+        "scannedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "locationId", "scannedAt"]
     }
   },
   "firestore": {
-    "/users/{uid}": {
-      "schema": "userProfile",
-      "description": "User collection storing private profile data"
-    },
     "/users/{uid}": {
       "schema": "userProfile",
       "description": "User collection storing private profile data"
@@ -162,6 +182,14 @@
     "/locations/{locationId}/sales/{saleId}": {
       "schema": "sale",
       "description": "Transaction logs per location"
+    },
+    "/locations/{locationId}/memberships/{userId}": {
+      "schema": "membership",
+      "description": "Staff roles within a shop"
+    },
+    "/locations/{locationId}/scans/{scanId}": {
+      "schema": "scan",
+      "description": "Anti-fraud validation logs for one-time use codes"
     },
     "/users/{uid}/activities/{activityId}": {
       "schema": "activity",

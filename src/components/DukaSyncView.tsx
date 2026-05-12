@@ -19,6 +19,8 @@ import {
   Printer,
   Settings,
   Building,
+  Edit3,
+  Users,
   BarChart as BarChartIcon,
   PieChart as PieChartIcon,
   Download,
@@ -52,7 +54,13 @@ import {
   createProduct,
   createLocation,
   recordSale,
-  updateStockLevel
+  updateStockLevel,
+  updateProduct,
+  subscribeToMemberships,
+  addMembership,
+  removeMembership,
+  validateScan,
+  Membership
 } from '../services/inventoryService';
 
 export default function DukaSyncView() {
@@ -65,9 +73,11 @@ export default function DukaSyncView() {
   const [view, setView] = useState<'overview' | 'inventory' | 'sales' | 'pos' | 'settings' | 'reports'>('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddProduct, setShowAddProduct] = useState(false);
+  const [showEditProduct, setShowEditProduct] = useState(false);
   const [showAddLocation, setShowAddLocation] = useState(false);
   const [showRestock, setShowRestock] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [restockAmount, setRestockAmount] = useState(0);
   const [cart, setCart] = useState<Array<{ product: Product, quantity: number }>>([]);
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'cash' | 'credit'>('cash');
@@ -77,6 +87,12 @@ export default function DukaSyncView() {
   const [lastSale, setLastSale] = useState<any>(null);
   const [showSaleSuccess, setShowSaleSuccess] = useState(false);
   const [showReceiptForm, setShowReceiptForm] = useState(false);
+  const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [userRole, setUserRole] = useState<'owner' | 'manager' | 'cashier'>('cashier');
+  const [showAddStaff, setShowAddStaff] = useState(false);
+  const [newStaff, setNewStaff] = useState({ userId: '', email: '', role: 'cashier' as 'manager' | 'cashier' });
+  const [ticketMode, setTicketMode] = useState(false);
+  const [scanResult, setScanResult] = useState<{ code: string, status: 'valid' | 'invalid' | 'duplicate' } | null>(null);
   const [receiptInfo, setReceiptInfo] = useState({
     customerName: '',
     notes: ''
@@ -91,6 +107,43 @@ export default function DukaSyncView() {
 
   const [currency, setCurrency] = useState(() => localStorage.getItem('dukaCurrency') || 'KES');
 
+  const [showCartOnMobile, setShowCartOnMobile] = useState(false);
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const barcodeRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (view === 'pos' && barcodeRef.current) {
+      barcodeRef.current.focus();
+    }
+  }, [view]);
+
+  const handleBarcodeSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!barcodeInput || !user || !activeLocation) return;
+    
+    const input = barcodeInput;
+    setBarcodeInput('');
+
+    if (ticketMode) {
+      const result = await validateScan(activeLocation.id, user.uid, input);
+      if (result.alreadyScanned) {
+        setScanResult({ code: input, status: 'duplicate' });
+      } else if (result.success) {
+        setScanResult({ code: input, status: 'valid' });
+      } else {
+        setScanResult({ code: input, status: 'invalid' });
+      }
+      
+      // Clear signal after 3 seconds
+      setTimeout(() => setScanResult(null), 3000);
+      return;
+    }
+
+    const product = products.find(p => p.sku === input || p.id === input);
+    if (product) {
+      addToCart(product);
+    }
+  };
   useEffect(() => {
     if (profile?.business) {
       setBusinessSettings({
@@ -127,7 +180,7 @@ export default function DukaSyncView() {
   useEffect(() => {
     if (!user) return;
     
-    const unsubProducts = subscribeToProducts(setProducts);
+    const unsubProducts = subscribeToProducts(user.uid, setProducts);
     const unsubLocations = subscribeToLocations(user.uid, (data) => {
       setLocations(data);
       if (data.length > 0 && !activeLocation) {
@@ -145,11 +198,27 @@ export default function DukaSyncView() {
     if (!activeLocation) return;
     const unsubInv = subscribeToInventory(activeLocation.id, setInventory);
     const unsubSales = subscribeToSales(activeLocation.id, setSales);
+    const unsubMems = subscribeToMemberships(activeLocation.id, setMemberships);
     return () => {
       unsubInv();
       unsubSales();
+      unsubMems();
     };
   }, [activeLocation]);
+
+  useEffect(() => {
+    if (!user || !activeLocation) return;
+    if (activeLocation.ownerId === user.uid) {
+      setUserRole('owner');
+      return;
+    }
+    const myMem = memberships.find(m => m.userId === user.uid);
+    if (myMem) {
+      setUserRole(myMem.role);
+    } else {
+      setUserRole('cashier');
+    }
+  }, [user, activeLocation, memberships]);
 
   const handleRestock = async () => {
     if (!activeLocation || !selectedProduct || restockAmount <= 0) return;
@@ -309,8 +378,18 @@ export default function DukaSyncView() {
     return { chartData, bestSellers, totalProfit, totalRevenue, averageMargin };
   }, [sales, products]);
 
+  const NAV_ITEMS = [
+    { id: 'overview', label: 'Command', icon: TrendingUp, roles: ['owner', 'manager'] },
+    { id: 'inventory', label: 'Stock', icon: Package, roles: ['owner', 'manager', 'cashier'] },
+    { id: 'pos', label: 'Terminal', icon: Smartphone, roles: ['owner', 'manager', 'cashier'] },
+    { id: 'sales', label: 'Ledger', icon: History, roles: ['owner', 'manager', 'cashier'] },
+    { id: 'reports', label: 'Intel', icon: BarChartIcon, roles: ['owner', 'manager'] },
+    { id: 'staff', label: 'Team', icon: Users, roles: ['owner', 'manager'] },
+    { id: 'settings', label: 'Profile', icon: Settings, roles: ['owner', 'manager', 'cashier'] },
+  ].filter(item => item.roles.includes(userRole));
+
   return (
-    <div className="min-h-screen bg-neutral-50 px-4 py-8 md:px-8">
+    <div className="min-h-screen bg-neutral-50 px-4 pt-8 pb-32 md:p-8 md:pb-8">
       {/* Header */}
       <div className="max-w-7xl mx-auto mb-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -324,26 +403,26 @@ export default function DukaSyncView() {
             <p className="text-sm font-bold text-neutral-400 uppercase tracking-widest">Distributed Retail Intelligence</p>
           </div>
 
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 bg-white p-2 rounded-2xl shadow-sm border border-neutral-100">
-                <Globe size={16} className="text-rose-600 ml-2" />
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-1 items-center gap-2 bg-white p-2 rounded-2xl shadow-sm border border-neutral-100 min-w-[120px]">
+                <Globe size={16} className="text-rose-600 ml-1 shrink-0" />
                 <select 
-                  className="bg-transparent text-sm font-black uppercase tracking-tight outline-none pr-8 py-1 cursor-pointer"
+                  className="bg-transparent text-[10px] font-black uppercase tracking-tight outline-none w-full py-1 cursor-pointer"
                   value={currency}
                   onChange={(e) => handleCurrencyChange(e.target.value)}
                 >
-                  <option value="KES">Kenyan Shilling (KES)</option>
-                  <option value="UGX">Ugandan Shilling (UGX)</option>
-                  <option value="TZS">Tanzanian Shilling (TZS)</option>
-                  <option value="RWF">Rwandan Franc (RWF)</option>
-                  <option value="USD">US Dollar (USD)</option>
+                  <option value="KES">KES</option>
+                  <option value="UGX">UGX</option>
+                  <option value="TZS">TZS</option>
+                  <option value="RWF">RWF</option>
+                  <option value="USD">USD</option>
                 </select>
               </div>
 
-              <div className="flex items-center gap-2 bg-white p-2 rounded-2xl shadow-sm border border-neutral-100">
-                <MapPin size={16} className="text-rose-600 ml-2" />
+              <div className="flex flex-[2] items-center gap-2 bg-white p-2 rounded-2xl shadow-sm border border-neutral-100 min-w-[140px]">
+                <MapPin size={16} className="text-rose-600 ml-1 shrink-0" />
                 <select 
-                  className="bg-transparent text-sm font-black uppercase tracking-tight outline-none pr-8 py-1 cursor-pointer"
+                  className="bg-transparent text-[10px] font-black uppercase tracking-tight outline-none w-full py-1 cursor-pointer"
                   value={activeLocation?.id || ''}
                   onChange={(e) => setActiveLocation(locations.find(l => l.id === e.target.value) || null)}
                 >
@@ -354,38 +433,33 @@ export default function DukaSyncView() {
                 </select>
               </div>
 
-              <button 
-                onClick={() => setShowAddLocation(true)}
-                className="w-10 h-10 bg-neutral-900 text-white rounded-xl flex items-center justify-center hover:bg-neutral-800 transition-colors shadow-lg shadow-neutral-900/10"
-                title="Link New Duka"
-              >
-                <Plus size={18} />
-              </button>
+              {userRole === 'owner' && (
+                <button 
+                  onClick={() => setShowAddLocation(true)}
+                  className="w-10 h-10 bg-neutral-900 text-white rounded-xl flex items-center justify-center hover:bg-neutral-800 transition-colors shadow-lg shadow-neutral-900/10 shrink-0"
+                  title="Link New Duka"
+                >
+                  <Plus size={18} />
+                </button>
+              )}
             </div>
         </div>
       </div>
 
       {/* Main Container */}
       <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="flex flex-col lg:flex-row gap-8">
           
-          {/* Sidebar Navigation */}
-          <div className="space-y-2">
-            {[
-              { id: 'overview', label: 'Command Center', icon: TrendingUp },
-              { id: 'inventory', label: 'Stock Manifest', icon: Package },
-              { id: 'pos', label: 'Sales Terminal', icon: Smartphone },
-              { id: 'sales', label: 'Trade Ledger', icon: History },
-              { id: 'reports', label: 'Intelligence', icon: BarChartIcon },
-              { id: 'settings', label: 'Business Profile', icon: Settings },
-            ].map((item) => (
+          {/* Desktop Sidebar Navigation */}
+          <div className="hidden lg:block w-72 shrink-0 space-y-2 sticky top-8 h-fit">
+            {NAV_ITEMS.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setView(item.id as any)}
                 className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all ${
                   view === item.id 
                   ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/20' 
-                  : 'bg-white text-neutral-500 hover:bg-neutral-100'
+                  : 'bg-white text-neutral-500 hover:bg-neutral-100 border border-neutral-100 hover:border-neutral-200'
                 }`}
               >
                 <div className="flex items-center gap-4">
@@ -397,12 +471,77 @@ export default function DukaSyncView() {
             ))}
           </div>
 
+          {/* Mobile Bottom Navigation */}
+          <div className="lg:hidden fixed bottom-6 left-6 right-6 z-50">
+            {/* Quick Add FAB for Mobile - Visible when not in POS to avoid overlap */}
+            {view !== 'pos' && (
+              <motion.button
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                onClick={() => setShowAddLocation(true)}
+                className="absolute -top-20 right-0 w-14 h-14 bg-rose-600 text-white rounded-full shadow-2xl flex items-center justify-center border-4 border-white active:scale-95 transition-transform"
+              >
+                <Plus size={24} />
+              </motion.button>
+            )}
+            <div className="bg-neutral-900/90 backdrop-blur-xl border border-white/10 rounded-3xl p-2 shadow-2xl flex items-center justify-between">
+              {NAV_ITEMS.map((item) => {
+                const isActive = view === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setView(item.id as any)}
+                    className={`flex flex-col items-center justify-center flex-1 py-3 px-1 rounded-2xl transition-all relative ${
+                      isActive ? 'text-white' : 'text-neutral-500'
+                    }`}
+                  >
+                    {isActive && (
+                      <motion.div 
+                        layoutId="activeTab"
+                        className="absolute inset-0 bg-rose-600 rounded-2xl -z-10"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                    <item.icon size={18} className={isActive ? 'scale-110 mb-1' : 'mb-1'} />
+                    <span className="text-[8px] font-black uppercase tracking-tighter truncate w-full text-center">
+                      {item.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Main Content Area */}
-          <div className="lg:col-span-3 space-y-8">
+          <div className="flex-1 space-y-8 min-w-0">
             
             {/* Overview Stats */}
             {view === 'overview' && (
               <div className="space-y-6">
+                
+                {/* Mobile Quick Action Link Duka */}
+                {locations.length === 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="lg:hidden bg-rose-600 p-8 rounded-[2.5rem] shadow-xl shadow-rose-600/20 text-white text-center"
+                  >
+                    <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Plus size={32} />
+                    </div>
+                    <h3 className="text-xl font-black uppercase tracking-tight italic mb-2">No Dukas Linked</h3>
+                    <p className="text-sm font-medium text-white/80 mb-6 px-4">Start your distributed retail journey by linking your first physical shop.</p>
+                    {userRole === 'owner' && (
+                      <button 
+                        onClick={() => setShowAddLocation(true)}
+                        className="w-full h-14 bg-white text-rose-600 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-lg"
+                      >
+                        Configure First Duka
+                      </button>
+                    )}
+                  </motion.div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-white p-6 rounded-3xl shadow-sm border border-neutral-100">
                     <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-4">Inventory Valuation</p>
@@ -427,10 +566,12 @@ export default function DukaSyncView() {
                     </div>
                   </div>
 
-                  <div className="bg-rose-600/5 p-6 rounded-3xl border-2 border-rose-600 border-dashed flex flex-col justify-center items-center text-center cursor-pointer hover:bg-rose-600/10 transition-colors" onClick={() => setShowAddProduct(true)}>
-                    <QrCode size={32} className="text-rose-600 mb-2" />
-                    <p className="text-[10px] font-black uppercase tracking-widest text-rose-600">Register New SKU</p>
-                  </div>
+                  {userRole !== 'cashier' && (
+                    <div className="bg-rose-600/5 p-6 rounded-3xl border-2 border-rose-600 border-dashed flex flex-col justify-center items-center text-center cursor-pointer hover:bg-rose-600/10 transition-colors" onClick={() => setShowAddProduct(true)}>
+                      <QrCode size={32} className="text-rose-600 mb-2" />
+                      <p className="text-[10px] font-black uppercase tracking-widest text-rose-600">Register New SKU</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -547,15 +688,32 @@ export default function DukaSyncView() {
                                   {currency} {product.price.toLocaleString()}
                                 </p>
                               </div>
-                              <button 
-                                onClick={() => {
-                                  setSelectedProduct(product);
-                                  setShowRestock(true);
-                                }}
-                                className="p-3 text-neutral-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                              >
-                                <Plus size={18} />
-                              </button>
+                              <div className="flex items-center gap-2">
+                                {userRole !== 'cashier' && (
+                                  <button 
+                                    onClick={() => {
+                                      setEditingProduct(product);
+                                      setShowEditProduct(true);
+                                    }}
+                                    className="p-3 text-neutral-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                                    title="Edit Product"
+                                  >
+                                    <Edit3 size={18} />
+                                  </button>
+                                )}
+                                {userRole !== 'cashier' && (
+                                  <button 
+                                    onClick={() => {
+                                      setSelectedProduct(product);
+                                      setShowRestock(true);
+                                    }}
+                                    className="p-3 text-neutral-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                                    title="Add Stock"
+                                  >
+                                    <Plus size={18} />
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
@@ -565,21 +723,102 @@ export default function DukaSyncView() {
                 )}
 
                 {view === 'pos' && (
-                  <div className="flex flex-col lg:flex-row h-[600px]">
+                  <div className="flex flex-col lg:flex-row min-h-[600px] lg:h-[600px]">
+                    {/* POS Mobile Header */}
+                    <div className="lg:hidden flex border-b border-neutral-100 p-2">
+                       <button 
+                         onClick={() => setShowCartOnMobile(false)}
+                         className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${
+                           !showCartOnMobile ? 'bg-neutral-900 text-white' : 'text-neutral-400'
+                         }`}
+                       >
+                         Store Catalog
+                       </button>
+                       <button 
+                         onClick={() => setShowCartOnMobile(true)}
+                         className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all relative ${
+                           showCartOnMobile ? 'bg-neutral-900 text-white' : 'text-neutral-400'
+                         }`}
+                       >
+                         Checkout Cart
+                         {cart.length > 0 && (
+                           <span className="absolute top-2 right-4 w-4 h-4 bg-rose-600 text-white text-[8px] flex items-center justify-center rounded-full border-2 border-white">
+                             {cart.length}
+                           </span>
+                         )}
+                       </button>
+                    </div>
+
                     {/* Catalog */}
-                    <div className="flex-1 flex flex-col border-r border-neutral-100 p-6 bg-neutral-50/30">
-                      <div className="relative mb-6">
-                        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300" />
-                        <input 
-                          type="text"
-                          placeholder="Search products..."
-                          className="w-full h-12 pl-11 pr-4 bg-white border border-neutral-100 rounded-xl text-sm font-medium focus:ring-2 ring-rose-600 outline-none"
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                        />
+                    <div className={`flex-1 flex flex-col border-r border-neutral-100 p-6 bg-neutral-50/30 relative ${showCartOnMobile ? 'hidden lg:flex' : 'flex'}`}>
+                      <AnimatePresence>
+                        {scanResult && (
+                          <motion.div 
+                            initial={{ opacity: 0, y: 10, x: '-50%' }}
+                            animate={{ opacity: 1, y: 0, x: '-50%' }}
+                            exit={{ opacity: 0, y: 10, x: '-50%' }}
+                            className={`absolute top-20 left-1/2 px-8 py-4 rounded-2xl shadow-2xl z-50 flex items-center gap-4 ${
+                              scanResult.status === 'valid' ? 'bg-emerald-600 text-white' : 
+                              scanResult.status === 'duplicate' ? 'bg-rose-600 text-white' : 
+                              'bg-neutral-800 text-white'
+                            }`}
+                          >
+                            {scanResult.status === 'valid' ? <Check size={24} /> : <AlertTriangle size={24} />}
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-widest opacity-80">
+                                {scanResult.status === 'valid' ? 'Access Verified' : scanResult.status === 'duplicate' ? 'Duplicate Scan' : 'Invalid Code'}
+                              </p>
+                              <p className="text-sm font-black mono">{scanResult.code}</p>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      <div className="flex gap-2 mb-6">
+                        <div className="relative flex-1">
+                          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300" />
+                          <input 
+                            type="text"
+                            placeholder="Search products..."
+                            className="w-full h-12 pl-11 pr-4 bg-white border border-neutral-100 rounded-xl text-sm font-medium focus:ring-2 ring-rose-600 outline-none"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                          />
+                        </div>
+
+                        <button 
+                          onClick={() => setTicketMode(!ticketMode)}
+                          className={`px-4 h-12 rounded-xl text-[8px] font-black uppercase tracking-widest border-2 transition-all flex items-center gap-2 shrink-0 ${ticketMode ? 'bg-rose-600 border-rose-600 text-white shadow-lg shadow-rose-600/20' : 'bg-white border-neutral-100 text-neutral-400'}`}
+                        >
+                          <Smartphone size={14} />
+                          Ticket Mode
+                        </button>
+
+                        <form onSubmit={handleBarcodeSubmit} className="relative w-32 md:w-48">
+                          <QrCode size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-rose-600" />
+                          <input 
+                            ref={barcodeRef}
+                            type="text"
+                            placeholder="Scan..."
+                            className="w-full h-12 pl-11 pr-4 bg-rose-50 border border-rose-100 rounded-xl text-sm font-black uppercase tracking-widest focus:ring-2 ring-rose-600 outline-none text-rose-900 placeholder:text-rose-300"
+                            value={barcodeInput}
+                            onChange={(e) => {
+                              setBarcodeInput(e.target.value);
+                              
+                              if (ticketMode) return; // Don't auto-add in ticket mode
+
+                              // Auto-submit if product exists (for fast scanners)
+                              const prod = products.find(p => p.sku === e.target.value);
+                              if (prod) {
+                                addToCart(prod);
+                                setBarcodeInput('');
+                              }
+                            }}
+                          />
+                        </form>
                       </div>
 
-                      <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 gap-3 pr-2">
+                      <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 gap-3 pr-2 pb-20 lg:pb-0">
                         {products.filter(p => 
                           p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           p.sku.toLowerCase().includes(searchQuery.toLowerCase())
@@ -604,7 +843,10 @@ export default function DukaSyncView() {
                               </div>
                               <p className="text-xs font-black uppercase tracking-tight text-neutral-900 line-clamp-1">{product.name}</p>
                               <p className="text-[10px] font-black text-rose-600 mt-1">{currency} {product.price.toLocaleString()}</p>
-                              <p className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest mt-2">Stock: {inv?.quantity || 0}</p>
+                              <p className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest mt-2 text-rose-500/60 font-black">
+                                In Cart: {currentInCart}
+                              </p>
+                              <p className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest mt-1">Stock: {inv?.quantity || 0}</p>
                             </button>
                           );
                         })}
@@ -612,7 +854,7 @@ export default function DukaSyncView() {
                     </div>
 
                     {/* Cart */}
-                    <div className="w-full lg:w-80 flex flex-col p-6 bg-white shrink-0">
+                    <div className={`w-full lg:w-96 flex flex-col p-6 bg-white shrink-0 ${showCartOnMobile ? 'flex' : 'hidden lg:flex'}`}>
                       <div className="flex items-center justify-between mb-6">
                         <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
                           <ShoppingCart size={16} className="text-rose-600" />
@@ -644,13 +886,22 @@ export default function DukaSyncView() {
                           </div>
                         ))}
                         {cart.length === 0 && (
-                          <div className="text-center py-12 border-2 border-dashed border-neutral-100 rounded-2xl">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-neutral-300">Cart Empty</p>
+                          <div className="text-center py-20 border-2 border-dashed border-neutral-100 rounded-2xl">
+                             <div className="w-16 h-16 bg-neutral-50 rounded-full flex items-center justify-center mx-auto mb-4 text-neutral-200">
+                               <ShoppingCart size={24} />
+                             </div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-neutral-300">Your cart is empty</p>
+                            <button 
+                              onClick={() => setShowCartOnMobile(false)}
+                              className="mt-4 px-6 py-2 bg-neutral-100 text-[8px] font-black uppercase tracking-widest rounded-lg text-neutral-500 lg:hidden"
+                            >
+                              Browse Products
+                            </button>
                           </div>
                         )}
                       </div>
 
-                      <div className="space-y-4 pt-6 border-t border-neutral-100">
+                      <div className="space-y-4 pt-6 border-t border-neutral-100 bg-white sticky bottom-0">
                         <div className="flex items-center justify-between">
                           <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Total Due</p>
                           <p className="text-xl font-black tracking-tighter text-neutral-900">{currency} {cartTotal.toLocaleString()}</p>
@@ -896,6 +1147,74 @@ export default function DukaSyncView() {
                   </div>
                 )}
 
+                {view === 'staff' && (
+                  <div className="p-10">
+                    <div className="flex items-center justify-between mb-10">
+                      <div>
+                        <h2 className="text-3xl font-black uppercase tracking-tighter italic">Team Management</h2>
+                        <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mt-1">Delegated Retail Operations</p>
+                      </div>
+                      {userRole === 'owner' && (
+                        <button 
+                          onClick={() => setShowAddStaff(true)}
+                          className="px-6 h-12 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-rose-600/20 flex items-center gap-2"
+                        >
+                          <Plus size={16} />
+                          Add Staff Member
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <div className="bg-white p-6 rounded-3xl border-2 border-rose-600 border-dashed flex flex-col items-center justify-center text-center">
+                        <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mb-4">
+                          <Store size={24} />
+                        </div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-1">Business Owner</p>
+                        <p className="text-xs font-black text-neutral-900 mb-1">{profile?.displayName || 'Owner'}</p>
+                        <p className="text-[10px] font-bold text-neutral-400 lowercase">{user?.email}</p>
+                      </div>
+
+                      {memberships.map((mem) => (
+                        <div key={mem.userId} className="bg-white p-6 rounded-3xl border border-neutral-100 shadow-sm relative group">
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${mem.role === 'manager' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                              <Users size={20} />
+                            </div>
+                            <div>
+                               <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400">{mem.role}</p>
+                               <p className="text-xs font-black text-neutral-900 italic">{mem.email || 'Staff Member'}</p>
+                            </div>
+                          </div>
+                          
+                          {userRole === 'owner' && (
+                            <button 
+                              onClick={() => {
+                                if (activeLocation) removeMembership(activeLocation.id, mem.userId);
+                              }}
+                              className="absolute top-4 right-4 p-2 text-neutral-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all"
+                            >
+                              <AlertTriangle size={16} />
+                            </button>
+                          )}
+
+                          <div className="pt-4 border-t border-neutral-50">
+                            <p className="text-[8px] font-bold text-neutral-300 uppercase tracking-widest">Added: {mem.addedAt?.toDate().toLocaleDateString() || 'Recently'}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {memberships.length === 0 && (
+                      <div className="mt-12 text-center p-12 bg-neutral-50 rounded-[2.5rem] border border-neutral-100 border-dashed">
+                        <Users size={48} className="mx-auto text-neutral-200 mb-4" />
+                        <h3 className="text-sm font-black uppercase tracking-widest text-neutral-900 mb-2">No Active Staff</h3>
+                        <p className="text-xs font-medium text-neutral-400 max-w-xs mx-auto">Build your distributed retail team by inviting managers and cashiers to this location.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {view === 'settings' && (
                   <div className="p-10">
                     <div className="max-w-2xl">
@@ -958,16 +1277,36 @@ export default function DukaSyncView() {
 
                         <button 
                           onClick={async () => {
-                            if (!user) return;
+                            if (!user || userRole !== 'owner') return;
                             await updateBusinessProfile(user.uid, businessSettings);
                             setCurrency(businessSettings.currency);
                             alert('Business profile synchronized successfully!');
                           }}
-                          className="w-full h-16 bg-neutral-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl flex items-center justify-center gap-3 group mt-4"
+                          disabled={userRole !== 'owner'}
+                          className={`w-full h-16 bg-neutral-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl flex items-center justify-center gap-3 group mt-4 ${userRole !== 'owner' ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <Check size={16} className="text-rose-600" />
                           Update Global Identity
                         </button>
+
+                        <div className="mt-12 p-6 bg-neutral-50 rounded-2xl border border-neutral-100">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-2">Technical Identity</p>
+                          <p className="text-[8px] font-bold text-neutral-300 mb-4 uppercase">Share this ID with your business owner to be added as staff.</p>
+                          <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-neutral-100">
+                            <code className="text-[10px] font-mono text-neutral-600">{user?.uid}</code>
+                            <button 
+                              onClick={() => {
+                                if (user?.uid) {
+                                  navigator.clipboard.writeText(user.uid);
+                                  alert('Identity code copied to clipboard');
+                                }
+                              }}
+                              className="text-[8px] font-black uppercase tracking-widest text-rose-600"
+                            >
+                              Copy ID
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1044,7 +1383,11 @@ export default function DukaSyncView() {
               <div className="flex gap-4">
                 <button 
                   onClick={async () => {
-                    await createProduct(newProduct);
+                    if (!user) return;
+                    await createProduct({
+                      ...newProduct,
+                      ownerId: user.uid
+                    });
                     setShowAddProduct(false);
                     setNewProduct({ name: '', sku: '', category: '', price: 0, cost: 0, unit: 'pcs' });
                   }}
@@ -1054,6 +1397,177 @@ export default function DukaSyncView() {
                 </button>
                 <button 
                   onClick={() => setShowAddProduct(false)}
+                  className="px-8 h-14 bg-neutral-100 text-neutral-900 rounded-2xl text-[10px] font-black uppercase tracking-widest"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showEditProduct && editingProduct && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               exit={{ opacity: 0 }}
+               onClick={() => setShowEditProduct(false)}
+               className="absolute inset-0 bg-neutral-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white w-full max-w-xl rounded-[2.5rem] p-10 relative z-10 shadow-2xl overflow-hidden"
+            >
+              <h2 className="text-3xl font-black uppercase tracking-tighter italic mb-8">Edit Product</h2>
+              
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="space-y-2 col-span-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Product Name</label>
+                  <input 
+                    className="w-full h-12 px-4 bg-neutral-50 rounded-xl text-sm font-medium focus:ring-2 ring-rose-600 outline-none"
+                    value={editingProduct.name}
+                    onChange={e => setEditingProduct({...editingProduct, name: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">SKU / Barcode</label>
+                  <input 
+                    className="w-full h-12 px-4 bg-neutral-50 rounded-xl text-sm font-medium focus:ring-2 ring-rose-600 outline-none"
+                    value={editingProduct.sku}
+                    onChange={e => setEditingProduct({...editingProduct, sku: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Category</label>
+                  <input 
+                    className="w-full h-12 px-4 bg-neutral-50 rounded-xl text-sm font-medium focus:ring-2 ring-rose-600 outline-none"
+                    value={editingProduct.category}
+                    onChange={e => setEditingProduct({...editingProduct, category: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Price ({currency})</label>
+                  <input 
+                    type="number"
+                    className="w-full h-12 px-4 bg-neutral-50 rounded-xl text-sm font-medium focus:ring-2 ring-rose-600 outline-none"
+                    value={editingProduct.price}
+                    onChange={e => setEditingProduct({...editingProduct, price: parseFloat(e.target.value)})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Cost ({currency})</label>
+                  <input 
+                    type="number"
+                    className="w-full h-12 px-4 bg-neutral-50 rounded-xl text-sm font-medium focus:ring-2 ring-rose-600 outline-none"
+                    value={editingProduct.cost}
+                    onChange={e => setEditingProduct({...editingProduct, cost: parseFloat(e.target.value)})}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button 
+                  onClick={async () => {
+                    const { id, ...updates } = editingProduct;
+                    await updateProduct(id, updates);
+                    setShowEditProduct(false);
+                    setEditingProduct(null);
+                  }}
+                  className="flex-1 h-14 bg-rose-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-rose-600/20"
+                >
+                  Save Changes
+                </button>
+                <button 
+                  onClick={() => setShowEditProduct(false)}
+                  className="px-8 h-14 bg-neutral-100 text-neutral-900 rounded-2xl text-[10px] font-black uppercase tracking-widest"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showAddStaff && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               exit={{ opacity: 0 }}
+               onClick={() => setShowAddStaff(false)}
+               className="absolute inset-0 bg-neutral-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white w-full max-w-md rounded-[2.5rem] p-10 relative z-10 shadow-2xl overflow-hidden"
+            >
+              <h2 className="text-3xl font-black uppercase tracking-tighter italic mb-8">Add Staff Member</h2>
+              
+              <div className="space-y-6 mb-8">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Staff Email</label>
+                  <input 
+                    type="email"
+                    className="w-full h-14 px-6 bg-neutral-50 rounded-2xl text-sm font-black focus:ring-2 ring-rose-600 outline-none"
+                    placeholder="e.g. staff@example.com"
+                    value={newStaff.email}
+                    onChange={e => setNewStaff({...newStaff, email: e.target.value})}
+                  />
+                  <p className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest">User must already have a Duka Sync account.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">User ID (Manual Link)</label>
+                  <input 
+                    className="w-full h-14 px-6 bg-neutral-50 rounded-2xl text-sm font-black focus:ring-2 ring-rose-600 outline-none"
+                    placeholder="UID from staff profile"
+                    value={newStaff.userId}
+                    onChange={e => setNewStaff({...newStaff, userId: e.target.value})}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Assignment Role</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      onClick={() => setNewStaff({...newStaff, role: 'manager'})}
+                      className={`h-12 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${newStaff.role === 'manager' ? 'bg-rose-600 border-rose-600 text-white' : 'bg-white border-neutral-100 text-neutral-400'}`}
+                    >
+                      Manager
+                    </button>
+                    <button 
+                      onClick={() => setNewStaff({...newStaff, role: 'cashier'})}
+                      className={`h-12 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${newStaff.role === 'cashier' ? 'bg-rose-600 border-rose-600 text-white' : 'bg-white border-neutral-100 text-neutral-400'}`}
+                    >
+                      Cashier
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button 
+                  onClick={async () => {
+                    if (!activeLocation || !newStaff.userId) return;
+                    await addMembership(activeLocation.id, newStaff.userId, newStaff.role, newStaff.email);
+                    setShowAddStaff(false);
+                    setNewStaff({ userId: '', email: '', role: 'cashier' });
+                  }}
+                  className="flex-1 h-14 bg-rose-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-rose-600/20"
+                >
+                  Confirm Assignment
+                </button>
+                <button 
+                  onClick={() => setShowAddStaff(false)}
                   className="px-8 h-14 bg-neutral-100 text-neutral-900 rounded-2xl text-[10px] font-black uppercase tracking-widest"
                 >
                   Cancel
