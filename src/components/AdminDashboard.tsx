@@ -22,8 +22,8 @@ import {
   Globe
 } from 'lucide-react';
 import { subscribeToAllActivities, Activity } from '../services/activityService';
-import { subscribeToAllUsers, toggleUserVip, UserProfile } from '../services/userService';
-import { subscribeToBroadcasts, createBroadcast, deleteBroadcast, Broadcast } from '../services/broadcastService';
+import { subscribeToAllUsers, toggleUserVip, grantVipAccess, UserProfile } from '../services/userService';
+import { subscribeToBroadcasts, createBroadcast, deleteBroadcast, updateBroadcastStatus, Broadcast } from '../services/broadcastService';
 import { useAuth } from '../contexts/AuthContext';
 
 type AdminTab = 'overview' | 'users' | 'intelligence' | 'broadcasts';
@@ -37,9 +37,18 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState({ totalOps: 0, uniqueUsers: 0, vipCount: 0 });
   const [isAddingBroadcast, setIsAddingBroadcast] = useState(false);
-  const [newBroadcast, setNewBroadcast] = useState<{message: string, type: Broadcast['type']}>({
+  const [newBroadcast, setNewBroadcast] = useState<{
+    title: string,
+    message: string, 
+    type: Broadcast['type'],
+    pinned: boolean,
+    expiresInDays: string
+  }>({
+    title: '',
     message: '',
-    type: 'info'
+    type: 'info',
+    pinned: false,
+    expiresInDays: '0'
   });
 
   useEffect(() => {
@@ -60,7 +69,7 @@ export default function AdminDashboard() {
 
       const unsubBroadcasts = subscribeToBroadcasts((data) => {
         setBroadcasts(data);
-      });
+      }, true);
 
       return () => {
         unsubActivities();
@@ -255,9 +264,16 @@ export default function AdminDashboard() {
                              {user.isAdmin ? (
                                <span className="px-3 py-1 bg-neutral-900 text-white text-[8px] font-black uppercase tracking-widest rounded-full">System Admin</span>
                              ) : user.isVip ? (
-                               <span className="px-3 py-1 bg-rose-600 text-white text-[8px] font-black uppercase tracking-widest rounded-full flex items-center gap-1 w-fit">
-                                  <Star size={8} /> Elite VIP
-                               </span>
+                               <div className="flex flex-col gap-1">
+                                 <span className="px-3 py-1 bg-rose-600 text-white text-[8px] font-black uppercase tracking-widest rounded-full flex items-center gap-1 w-fit">
+                                    <Star size={8} /> Elite VIP
+                                 </span>
+                                 {user.billingCycle && user.billingCycle !== 'none' && (
+                                   <span className="text-[7px] font-bold text-neutral-400 uppercase tracking-tighter ml-1">
+                                     {user.billingCycle} {user.vipExpiry ? `(Until ${new Date(user.vipExpiry).toLocaleDateString()})` : ''}
+                                   </span>
+                                 )}
+                               </div>
                              ) : (
                                <span className="px-3 py-1 bg-neutral-100 text-neutral-400 text-[8px] font-black uppercase tracking-widest rounded-full">Standard Tier</span>
                              )}
@@ -266,20 +282,42 @@ export default function AdminDashboard() {
                              <div className="text-[10px] font-bold text-neutral-500 uppercase">
                                 {user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}
                              </div>
+                             {user.trialActivatedAt && (
+                               <div className="text-[7px] font-black text-emerald-500 uppercase mt-1">Trial Used</div>
+                             )}
                           </td>
                           <td className="px-10 py-6 text-right">
                              {!user.isAdmin && (
-                               <div className="flex items-center justify-end gap-3">
-                                  <button 
-                                    onClick={() => toggleUserVip(user.uid, user.isVip)}
-                                    className={`px-4 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${
-                                      user.isVip 
-                                      ? 'border border-rose-100 text-rose-600 hover:bg-rose-50' 
-                                      : 'bg-neutral-900 text-white hover:bg-rose-600'
-                                    }`}
-                                  >
-                                    {user.isVip ? 'Revoke VIP' : 'Grant VIP'}
-                                  </button>
+                               <div className="flex items-center justify-end gap-2">
+                                  {user.isVip ? (
+                                    <button 
+                                      onClick={() => toggleUserVip(user.uid, user.isVip)}
+                                      className="px-4 py-2 border border-rose-100 text-rose-600 hover:bg-rose-50 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all"
+                                    >
+                                      Revoke
+                                    </button>
+                                  ) : (
+                                    <div className="flex gap-2">
+                                      <button 
+                                        onClick={() => grantVipAccess(user.uid, 'monthly')}
+                                        className="px-3 py-2 bg-neutral-900 text-white hover:bg-black rounded-lg text-[7px] font-black uppercase shadow-lg shadow-black/10"
+                                      >
+                                        Monthly
+                                      </button>
+                                      <button 
+                                        onClick={() => grantVipAccess(user.uid, 'annually')}
+                                        className="px-3 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg text-[7px] font-black uppercase shadow-lg shadow-indigo-600/10"
+                                      >
+                                        Yearly
+                                      </button>
+                                      <button 
+                                        onClick={() => grantVipAccess(user.uid, 'lifetime')}
+                                        className="px-3 py-2 bg-rose-600 text-white hover:bg-rose-700 rounded-lg text-[7px] font-black uppercase shadow-lg shadow-rose-600/10"
+                                      >
+                                        Life
+                                      </button>
+                                    </div>
+                                  )}
                                   <button className="p-2 hover:bg-neutral-100 rounded-xl transition-colors">
                                      <MoreVertical size={16} className="text-neutral-400" />
                                   </button>
@@ -328,20 +366,27 @@ export default function AdminDashboard() {
                    <div className="p-20 text-center text-neutral-400 font-medium">No active broadcasts in the field.</div>
                  ) : (
                    broadcasts.map((b) => (
-                     <div key={b.id} className="p-8 flex items-center justify-between hover:bg-neutral-50 transition-colors">
+                     <div key={b.id} className={`p-8 flex items-center justify-between hover:bg-neutral-50 transition-colors ${!b.active ? 'opacity-50 grayscale select-none' : ''}`}>
                         <div className="flex items-center gap-6">
-                           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center relative ${
                              b.type === 'critical' ? 'bg-rose-100 text-rose-600' :
                              b.type === 'warning' ? 'bg-amber-100 text-amber-600' :
                              b.type === 'success' ? 'bg-emerald-100 text-emerald-600' :
                              'bg-neutral-100 text-neutral-900'
                            }`}>
                               <Megaphone size={20} />
+                              {b.pinned && (
+                                <div className="absolute -top-1 -right-1 w-5 h-5 bg-rose-600 text-white rounded-full flex items-center justify-center border-2 border-white">
+                                  <Star size={10} fill="currentColor" />
+                                </div>
+                              )}
                            </div>
-                           <div>
-                              <div className="flex items-center gap-3 mb-1">
-                                 <h4 className="text-sm font-black uppercase tracking-tight text-neutral-900">{b.message}</h4>
-                                 <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
+                           <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-3 mb-1 overflow-hidden">
+                                 <h4 className="text-sm font-black uppercase tracking-tight text-neutral-900 truncate">
+                                   {b.title ? `${b.title}: ` : ''}{b.message}
+                                 </h4>
+                                 <span className={`shrink-0 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
                                     b.type === 'critical' ? 'bg-rose-600 text-white' :
                                     b.type === 'warning' ? 'bg-amber-500 text-white' :
                                     b.type === 'success' ? 'bg-emerald-600 text-white' :
@@ -349,18 +394,40 @@ export default function AdminDashboard() {
                                  }`}>
                                     {b.type}
                                  </span>
+                                 {!b.active && (
+                                   <span className="shrink-0 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-neutral-200 text-neutral-500">
+                                     Inactive
+                                   </span>
+                                 )}
                               </div>
-                              <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
-                                 Deployed: {b.createdAt?.toDate ? b.createdAt.toDate().toLocaleString() : 'Recent'}
-                              </p>
+                              <div className="flex items-center gap-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                                 <span>Deployed: {b.createdAt?.toDate ? b.createdAt.toDate().toLocaleString() : 'Recent'}</span>
+                                 {b.expiresAt && (
+                                   <span className="flex items-center gap-1 text-rose-400">
+                                     <Clock size={10} /> Exp: {b.expiresAt.toDate().toLocaleDateString()}
+                                   </span>
+                                 )}
+                              </div>
                            </div>
                         </div>
-                        <button 
-                           onClick={() => deleteBroadcast(b.id)}
-                           className="p-3 text-neutral-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                        >
-                           <Trash2 size={16} />
-                        </button>
+                        <div className="flex items-center gap-2">
+                           <button 
+                              onClick={() => updateBroadcastStatus(b.id, !b.active)}
+                              className={`px-4 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${
+                                b.active 
+                                ? 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200' 
+                                : 'bg-rose-600 text-white hover:bg-rose-700 shadow-lg shadow-rose-600/20'
+                              }`}
+                           >
+                              {b.active ? 'Deactivate' : 'Reactivate'}
+                           </button>
+                           <button 
+                              onClick={() => deleteBroadcast(b.id)}
+                              className="p-3 text-neutral-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                           >
+                              <Trash2 size={16} />
+                           </button>
+                        </div>
                      </div>
                    ))
                  )}
@@ -384,19 +451,59 @@ export default function AdminDashboard() {
            >
               <h3 className="text-3xl font-black uppercase tracking-tighter italic">Nova Transmission</h3>
               
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                   <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Header/Title</label>
+                   <input 
+                      type="text"
+                      value={newBroadcast.title}
+                      onChange={e => setNewBroadcast({...newBroadcast, title: e.target.value})}
+                      className="w-full h-12 px-4 bg-neutral-50 rounded-xl text-sm font-medium focus:ring-2 ring-rose-600 outline-none"
+                      placeholder="Optional title..."
+                   />
+                </div>
+                <div className="space-y-2">
+                   <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Expiration (Days)</label>
+                   <select 
+                      value={newBroadcast.expiresInDays}
+                      onChange={e => setNewBroadcast({...newBroadcast, expiresInDays: e.target.value})}
+                      className="w-full h-12 px-4 bg-neutral-50 rounded-xl text-sm font-medium focus:ring-2 ring-rose-600 outline-none appearance-none"
+                   >
+                      <option value="0">Never Expires</option>
+                      <option value="1">1 Day</option>
+                      <option value="3">3 Days</option>
+                      <option value="7">7 Days</option>
+                      <option value="30">30 Days</option>
+                   </select>
+                </div>
+              </div>
+
               <div className="space-y-2">
                  <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Message Content</label>
                  <textarea 
                     value={newBroadcast.message}
                     onChange={e => setNewBroadcast({...newBroadcast, message: e.target.value})}
-                    className="w-full h-32 p-4 bg-neutral-50 rounded-xl text-sm font-medium focus:ring-2 ring-rose-600 outline-none resize-none"
+                    className="w-full h-24 p-4 bg-neutral-50 rounded-xl text-sm font-medium focus:ring-2 ring-rose-600 outline-none resize-none"
                     placeholder="Enter system-wide message..."
                  />
               </div>
 
+              <div className="flex items-center justify-between p-4 bg-neutral-50 rounded-xl">
+                 <div className="flex items-center gap-3">
+                    <Star size={16} className={newBroadcast.pinned ? "text-rose-600" : "text-neutral-300"} />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-neutral-600">Pin to Top of Feed</span>
+                 </div>
+                 <button 
+                    onClick={() => setNewBroadcast({...newBroadcast, pinned: !newBroadcast.pinned})}
+                    className={`w-12 h-6 rounded-full transition-colors relative ${newBroadcast.pinned ? 'bg-rose-600' : 'bg-neutral-200'}`}
+                 >
+                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${newBroadcast.pinned ? 'right-1' : 'left-1'}`} />
+                 </button>
+              </div>
+
               <div className="space-y-2">
                  <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Signal Priority</label>
-                 <div className="grid grid-cols-2 gap-2">
+                 <div className="grid grid-cols-4 gap-2">
                     {(['info', 'warning', 'critical', 'success'] as const).map((type) => (
                       <button
                         key={type}
@@ -415,14 +522,21 @@ export default function AdminDashboard() {
 
               <div className="flex gap-4 pt-4">
                  <button 
+                    disabled={!newBroadcast.message}
                     onClick={async () => {
-                       await createBroadcast(newBroadcast.message, newBroadcast.type);
+                       await createBroadcast(
+                         newBroadcast.message, 
+                         newBroadcast.title, 
+                         newBroadcast.type,
+                         newBroadcast.pinned,
+                         newBroadcast.expiresInDays === '0' ? null : parseInt(newBroadcast.expiresInDays)
+                       );
                        setIsAddingBroadcast(false);
-                       setNewBroadcast({ message: '', type: 'info' });
+                       setNewBroadcast({ title: '', message: '', type: 'info', pinned: false, expiresInDays: '0' });
                     }}
-                    className="flex-1 h-14 bg-rose-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-rose-600/20"
+                    className="flex-1 h-14 bg-rose-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-rose-600/20 disabled:opacity-50 disabled:grayscale"
                  >
-                    Transmit
+                    Transmit Signal
                  </button>
                  <button 
                     onClick={() => setIsAddingBroadcast(false)}

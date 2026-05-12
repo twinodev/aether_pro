@@ -6,13 +6,19 @@ import { subscribeToBroadcasts, Broadcast } from '../../services/broadcastServic
 export default function BroadcastBanner() {
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [dismissedIds, setDismissedIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem('dismissedBroadcasts');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   useEffect(() => {
     let lastBroadcastId: string | null = null;
     
     const unsub = subscribeToBroadcasts((data) => {
-      if (data.length > 0) {
-        const latest = data[0];
+      const filtered = data.filter(b => !dismissedIds.includes(b.id));
+      
+      if (filtered.length > 0) {
+        const latest = filtered[0];
         
         // Only notify if it's a new message we haven't seen in this session cycle
         if (latest.id !== lastBroadcastId) {
@@ -31,11 +37,18 @@ export default function BroadcastBanner() {
           lastBroadcastId = latest.id;
         }
       }
-      setBroadcasts(data);
+      setBroadcasts(filtered);
       setCurrentIndex(0);
     });
     return () => unsub();
-  }, []);
+  }, [dismissedIds]);
+
+  const handleDismiss = (id: string) => {
+    const next = [...dismissedIds, id];
+    setDismissedIds(next);
+    localStorage.setItem('dismissedBroadcasts', JSON.stringify(next));
+    setBroadcasts(prev => prev.filter(b => b.id !== id));
+  };
 
   if (broadcasts.length === 0) return null;
 
@@ -75,11 +88,16 @@ export default function BroadcastBanner() {
             
             <div className="flex-1 min-w-0">
                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-[8px] font-black uppercase tracking-[0.2em] opacity-60">System Broadcast</span>
+                  <span className="text-[8px] font-black uppercase tracking-[0.2em] opacity-60">
+                    {current.pinned ? 'Pinned Directive' : 'System Broadcast'}
+                  </span>
                   {broadcasts.length > 1 && (
                     <span className="text-[8px] font-black opacity-40">({currentIndex + 1}/{broadcasts.length})</span>
                   )}
                </div>
+               {current.title && (
+                 <h4 className="text-[10px] font-black uppercase tracking-tight mb-0.5 leading-none">{current.title}</h4>
+               )}
                <p className="text-xs font-bold leading-tight truncate">{current.message}</p>
             </div>
 
@@ -93,7 +111,7 @@ export default function BroadcastBanner() {
                  </button>
                )}
                <button 
-                onClick={() => setBroadcasts(prev => prev.filter(b => b.id !== current.id))}
+                onClick={() => handleDismiss(current.id)}
                 className="p-1 hover:bg-white/10 rounded-lg transition-colors"
                >
                  <X size={14} />

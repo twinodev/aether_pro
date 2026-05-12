@@ -11,6 +11,9 @@
         "photoURL": { "type": "string" },
         "isVip": { "type": "boolean" },
         "isAdmin": { "type": "boolean" },
+        "trialActivatedAt": { "type": "string", "format": "date-time" },
+        "vipExpiry": { "type": "string", "format": "date-time" },
+        "billingCycle": { "type": "string", "enum": ["monthly", "annually", "lifetime", "none"] },
         "createdAt": { "type": "string", "format": "date-time" },
         "lastLogin": { "type": "string", "format": "date-time" }
       },
@@ -53,12 +56,100 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["message", "type", "active", "createdAt"]
+    },
+    "product": {
+      "title": "Duka Product",
+      "description": "Product in the inventory system",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "sku": { "type": "string" },
+        "category": { "type": "string" },
+        "barcode": { "type": "string" },
+        "price": { "type": "number" },
+        "cost": { "type": "number" },
+        "unit": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "sku", "price"]
+    },
+    "inventoryItem": {
+      "title": "Inventory Level",
+      "description": "Stock level for a product at a specific location",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "locationId": { "type": "string" },
+        "quantity": { "type": "number" },
+        "minStockLevel": { "type": "number" },
+        "lastRestockedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "location": {
+      "title": "Duka Location",
+      "description": "Physical shop or warehouse location",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["name", "ownerId"]
+    },
+    "sale": {
+      "title": "Duka Sale",
+      "description": "Sales transaction record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "items": { 
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "productId": { "type": "string" },
+              "quantity": { "type": "number" },
+              "price": { "type": "number" }
+            }
+          }
+        },
+        "total": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["mpesa", "cash", "credit"] },
+        "locationId": { "type": "string" },
+        "userId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
     "/users/{uid}": {
       "schema": "userProfile",
       "description": "User collection storing private profile data"
+    },
+    "/users/{uid}": {
+      "schema": "userProfile",
+      "description": "User collection storing private profile data"
+    },
+    "/products/{productId}": {
+      "schema": "product",
+      "description": "Master product catalog"
+    },
+    "/locations/{locationId}": {
+      "schema": "location",
+      "description": "Registered shop locations"
+    },
+    "/locations/{locationId}/inventory/{productId}": {
+      "schema": "inventoryItem",
+      "description": "Real-time stock levels per location"
+    },
+    "/locations/{locationId}/sales/{saleId}": {
+      "schema": "sale",
+      "description": "Transaction logs per location"
     },
     "/users/{uid}/activities/{activityId}": {
       "schema": "activity",

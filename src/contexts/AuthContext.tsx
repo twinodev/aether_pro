@@ -19,6 +19,7 @@ interface AuthContextType {
   loading: boolean;
   isVip: boolean;
   isAdmin: boolean;
+  trialAvailable: boolean;
   login: () => Promise<void>;
   loginWithEmail: (email: string, pass: string) => Promise<void>;
   registerWithEmail: (email: string, pass: string, name: string) => Promise<void>;
@@ -35,6 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isVip, setIsVip] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [trialAvailable, setTrialAvailable] = useState(true);
 
   useEffect(() => {
     setPersistence(auth, browserLocalPersistence)
@@ -50,7 +52,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const unsubDoc = onSnapshot(userRef, (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
-            setIsVip(data.isVip || false);
+            const isAdminUser = firebaseUser.email === ADMIN_EMAIL || data.isAdmin;
+            const now = new Date();
+            const expiry = data.vipExpiry ? new Date(data.vipExpiry) : null;
+            const hasActiveVip = data.isVip && (!expiry || now < expiry);
+            
+            setIsVip(isAdminUser || hasActiveVip);
+            setIsAdmin(isAdminUser);
+            setTrialAvailable(!data.trialActivatedAt);
+
             if (firebaseUser.email === ADMIN_EMAIL && !data.isAdmin) {
               setDoc(userRef, { isAdmin: true }, { merge: true }).catch(err => {
                 console.warn('Silent failure updating admin state:', err);
@@ -148,6 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading, 
       isVip, 
       isAdmin, 
+      trialAvailable,
       login, 
       loginWithEmail,
       registerWithEmail,

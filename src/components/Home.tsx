@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { QrCode, ArrowRight, Barcode as BarcodeIcon, Camera, Repeat, Shield, Users, FileText, Clock, Sparkles, Check, Tickets, Zap, Receipt, Smartphone, Link as LinkIcon } from 'lucide-react';
+import { QrCode, ArrowRight, Barcode as BarcodeIcon, Camera, Repeat, Shield, Users, FileText, Clock, Sparkles, Check, Tickets, Zap, Receipt, Smartphone, Link as LinkIcon, Store } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
 import { subscribeToRecentActivities, Activity } from '../services/activityService';
@@ -26,7 +26,9 @@ const ToolCard = ({ id, title, description, icon, onClick, color = 'bg-neutral-9
   };
 
   return (
-    <motion.button
+    <motion.div
+      role="button"
+      tabIndex={0}
       variants={{
         hidden: { opacity: 0, y: 20 },
         visible: { opacity: 1, y: 0 }
@@ -34,7 +36,13 @@ const ToolCard = ({ id, title, description, icon, onClick, color = 'bg-neutral-9
       whileHover={{ y: -6, scale: 1.01 }}
       whileTap={{ scale: 0.99 }}
       onClick={() => onClick(id)}
-      className="card group relative flex h-full min-h-[220px] w-full flex-col overflow-hidden border-2 border-neutral-100 dark:border-neutral-800 p-8 text-left transition-all duration-300 hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-2xl hover:shadow-black/5 dark:hover:shadow-white/5"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick(id);
+        }
+      }}
+      className="cursor-pointer card group relative flex h-full min-h-[220px] w-full flex-col overflow-hidden border-2 border-neutral-100 dark:border-neutral-800 p-8 text-left transition-all duration-300 hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-2xl hover:shadow-black/5 dark:hover:shadow-white/5"
     >
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none">
@@ -63,14 +71,13 @@ const ToolCard = ({ id, title, description, icon, onClick, color = 'bg-neutral-9
         <span className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-300 dark:text-neutral-600 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors">Launch Tool</span>
         <ArrowRight size={20} className="text-neutral-200 dark:text-neutral-800 group-hover:text-neutral-900 dark:group-hover:text-white group-hover:translate-x-1 transition-all" />
       </div>
-    </motion.button>
+    </motion.div>
   );
 };
 
-export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id: string) => void, onUnlockAll?: () => void }) {
+export default function Home({ onSelectTool }: { onSelectTool: (id: string) => void }) {
   const { user, isVip } = useAuth();
   const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
-  const [showInterstitial, setShowInterstitial] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -83,10 +90,6 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
       setRecentActivities([]);
     }
   }, [user]);
-
-  const handleUnlockAll = () => {
-    onUnlockAll?.();
-  };
 
   const categories = [
     { id: 'all', name: 'All Suites', icon: <Sparkles size={14} /> },
@@ -114,6 +117,16 @@ export default function Home({ onSelectTool, onUnlockAll }: { onSelectTool: (id:
       color: 'bg-indigo-600',
       featured: true,
       category: 'finance',
+      vip: true
+    },
+    {
+      id: 'duka-sync',
+      title: 'Duka Sync',
+      description: 'Distributed inventory & shop management.',
+      icon: <Store size={24} />,
+      color: 'bg-rose-600',
+      featured: true,
+      category: 'ops',
       vip: true
     },
     {

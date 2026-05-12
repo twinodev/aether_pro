@@ -112,7 +112,7 @@ export default function TicketingTool() {
     return 'TKT-' + Math.random().toString(36).substr(2, 9).toUpperCase();
   };
 
-  const handleSaveAndPrint = async () => {
+  const handleDeploy = async () => {
     setLoading(true);
     setLoadingProgress(0);
     
@@ -149,30 +149,43 @@ export default function TicketingTool() {
       createdAt: null,
     };
 
-    // Firebase sync in background - don't block the PDF generation
-    createTicket(ticketData).catch(err => {
-      console.error('Relational sync delayed or failed', err);
-    });
-    
+    // Firebase sync in background
+    try {
+      setLoadingProgress(50);
+      await createTicket(ticketData);
+      setLoadingProgress(100);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) {
+      console.error('Relational sync failed', err);
+    } finally {
+      setLoading(false);
+      setLoadingProgress(0);
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    setLoading(true);
+    setLoadingProgress(0);
+    const ticketId = generateTicketId();
+
     try {
       setLoadingProgress(30);
       // Generate PDF
       const doc = new jsPDF({
         orientation: orientation === 'horizontal' ? 'l' : 'p',
         unit: 'mm',
-        format: [139.7, 50.8] // 5.5" x 2"
+        format: [139.7, 63.5] // 5.5" x 2.5"
       });
 
       // Handle Featured/Overlay Image for PDF
       if (featuredImage) {
-        // Use FAST compression to reduce generation lag
-        doc.addImage(featuredImage, 'JPEG', 0, 0, 139.7, 50.8, undefined, 'FAST');
+        doc.addImage(featuredImage, 'JPEG', 0, 0, 139.7, 63.5, undefined, 'FAST');
       }
 
       setLoadingProgress(60);
       const qrCanvas = ticketRef.current?.querySelector('canvas');
       if (qrCanvas) {
-        // Generate a slightly smaller data URL for performance
         const qrDataUrl = qrCanvas.toDataURL('image/png');
         
         if (layout === 'overlay') {
@@ -190,21 +203,21 @@ export default function TicketingTool() {
           // Standard layout PDF logic
           doc.setFillColor(color);
           if (orientation === 'horizontal') {
-            doc.rect(0, 0, 10, 50.8, 'F');
+            doc.rect(0, 0, 10, 63.5, 'F');
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(18 * fontSize);
             doc.setTextColor(40, 40, 40);
             doc.text(eventTitle.toUpperCase(), 15, 15);
             doc.setFontSize(12 * fontSize);
-            doc.text(`UGX ${price}`, 15, 45);
+            doc.text(`UGX ${price}`, 15, 55);
             doc.setFontSize(10 * fontSize);
             doc.text(customerName.toUpperCase(), 15, 30);
             
-            doc.addImage(qrDataUrl, 'PNG', 115, 10, 20, 20, undefined, 'FAST');
+            doc.addImage(qrDataUrl, 'PNG', 110, 10, 25, 25, undefined, 'FAST');
             doc.setFontSize(6 * fontSize);
-            doc.text(ticketId, 115, 32);
+            doc.text(ticketId, 110, 38);
           } else {
-            doc.rect(0, 0, 50.8, 10, 'F');
+            doc.rect(0, 0, 139.7, 10, 'F');
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(16 * fontSize);
             doc.setTextColor(40, 40, 40);
@@ -217,7 +230,7 @@ export default function TicketingTool() {
             doc.setFontSize(10 * fontSize);
             doc.text(customerName.toUpperCase(), 5, 40);
             doc.setFontSize(12 * fontSize);
-            doc.text(`UGX ${price}`, 5, 48);
+            doc.text(`UGX ${price}`, 5, 55);
           }
         }
       }
@@ -225,12 +238,10 @@ export default function TicketingTool() {
       setLoadingProgress(100);
       doc.save(`ticket-${ticketId}.pdf`);
     } catch (err) {
-      console.error('Critical generation failure', err);
+      console.error('PDF generation failure', err);
     } finally {
       setLoading(false);
       setLoadingProgress(0);
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
     }
   };
 
@@ -344,32 +355,27 @@ export default function TicketingTool() {
     <style dangerouslySetInnerHTML={{ __html: `
       @media print {
         @page {
-          size: 5.5in 2in;
+          size: 5.5in 2.5in;
           margin: 0;
         }
         body {
           margin: 0;
-          -webkit-print-color-adjust: exact;
-        }
-        .perspective-1000 {
-          perspective: 1000px;
-        }
-        .holo-shimmer {
-          background: linear-gradient(
-            45deg,
-            rgba(255, 255, 255, 0) 0%,
-            rgba(255, 255, 255, 0.4) 50%,
-            rgba(255, 255, 255, 0) 100%
-          );
-          background-size: 200% 200%;
-          animation: shimmer 3s infinite linear;
-        }
-        @keyframes shimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
+          padding: 0;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
         }
         .no-print {
           display: none !important;
+        }
+        /* Ensure the ticket takes up the full print page */
+        #ticket-render {
+          width: 5.5in !important;
+          height: 2.5in !important;
+          max-width: none !important;
+          transform: none !important;
+          margin: 0 !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
         }
       }
     `}} />
@@ -852,7 +858,7 @@ export default function TicketingTool() {
              </div>
 
              <button 
-                onClick={bulkMode ? handleBulkGenerate : handleSaveAndPrint}
+                onClick={bulkMode ? handleBulkGenerate : handleDeploy}
                 disabled={loading}
                 className={`w-full h-20 rounded-2xl flex flex-col items-center justify-center gap-1 text-[12px] font-black uppercase tracking-[0.2em] transition-all relative overflow-hidden group
                   ${success ? 'bg-emerald-500 text-white shadow-emerald-200 shadow-xl' : 'bg-neutral-900 text-white hover:bg-black shadow-xl'}`}
@@ -903,9 +909,18 @@ export default function TicketingTool() {
                  <button 
                     onClick={handleExportImage}
                     className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all border border-white/10 group"
+                    title="Download as PNG"
+                 >
+                    <ImageIcon size={14} className="group-hover:scale-110 transition-transform" />
+                    <span className="hidden md:inline text-[9px] font-black uppercase tracking-widest font-mono">PNG</span>
+                 </button>
+                 <button 
+                    onClick={handleDownloadPDF}
+                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all border border-white/10 group"
+                    title="Download as PDF"
                  >
                     <Download size={14} className="group-hover:scale-110 transition-transform" />
-                    <span className="hidden md:inline text-[10px] font-black uppercase tracking-widest font-mono">PNG</span>
+                    <span className="hidden md:inline text-[9px] font-black uppercase tracking-widest font-mono">PDF</span>
                  </button>
                  <button 
                     onClick={() => handlePrint()}
@@ -923,13 +938,14 @@ export default function TicketingTool() {
                <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
                     style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
                
-               <div className={`w-full perspective-1000 flex justify-center ${orientation === 'vertical' ? 'overflow-auto md:overflow-visible h-full items-start md:items-center pt-4 md:pt-0' : ''}`}>
+               <div className={`w-full perspective-1000 flex justify-center ${orientation === 'vertical' ? 'overflow-auto md:overflow-visible h-[80vh] md:h-full items-start md:items-center pt-4 md:pt-0' : ''}`}>
                <motion.div 
                   ref={ticketRef}
+                  id="ticket-render"
                   className={`mx-auto rounded-[1.5rem] overflow-hidden shadow-2xl flex transition-all duration-300 relative
                     ${orientation === 'horizontal' 
-                       ? 'w-full max-w-[320px] md:max-w-3xl aspect-[5.5/2] flex-row scale-[0.9] md:scale-100' 
-                       : 'w-[260px] h-[720px] md:w-[280px] md:h-[770px] flex-col scale-[0.7] md:scale-100 origin-top'
+                       ? 'w-full max-w-4xl aspect-[11/5] flex-row scale-[0.85] sm:scale-100' 
+                       : 'w-full max-w-[300px] sm:max-w-[320px] aspect-[4/9] md:aspect-[4/10] flex-col origin-top scale-[0.8] sm:scale-100'
                     }
                     ${layout === 'vintage' ? 'bg-[#fdfbf7] border-4 border-[#8B4513]/20 font-serif' : 
                      layout === 'neon' ? 'bg-[#0a0a0a] border border-[#00f3ff]/30 text-[#00f3ff]' : 
@@ -980,114 +996,114 @@ export default function TicketingTool() {
                        </div>
                     </div>
                   ) : layout === 'bento' ? (
-                    <div className="flex-1 flex gap-1 md:gap-2 h-full">
+                    <div className="flex-1 flex gap-[2px] md:gap-2 h-full">
                        {/* Main Info Block */}
-                       <div className="flex-[2] bg-neutral-50 rounded-[1rem] p-4 flex flex-col justify-between">
+                       <div className="flex-[2] bg-neutral-50 rounded-[1rem] p-2 md:p-6 flex flex-col justify-between">
                           <div className="flex justify-between items-start">
-                             <div className="space-y-4">
-                                {logo && <img src={logo} alt="logo" className="h-8 w-8 object-contain mb-2" />}
-                                <div className="space-y-1">
-                                   <div className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400">Official Pass</div>
-                                   <h2 className="text-xl md:text-3xl font-black uppercase leading-tight tracking-tighter text-neutral-900">{eventTitle}</h2>
+                             <div className="space-y-2 md:space-y-4">
+                                {logo && <img src={logo} alt="logo" className="h-4 w-4 md:h-10 md:w-10 object-contain mb-1 md:mb-2" />}
+                                <div className="space-y-0.5 md:space-y-1">
+                                   <div className="text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400">Official Pass</div>
+                                   <h2 className="text-sm sm:text-lg md:text-2xl lg:text-3xl font-black uppercase leading-tight tracking-tighter text-neutral-900 line-clamp-2">{eventTitle}</h2>
                                 </div>
                              </div>
                              <div className="flex flex-col items-end">
-                                <span className="text-[10px] font-black uppercase text-neutral-400">Tier</span>
-                                <span className="px-3 py-1 bg-neutral-900 text-white rounded-full text-[10px] font-black uppercase tracking-widest leading-none mt-1">{ticketType}</span>
+                                <span className="text-[8px] md:text-[10px] font-black uppercase text-neutral-400">Tier</span>
+                                <span className="px-2 py-0.5 md:px-3 md:py-1 bg-neutral-900 text-white rounded-full text-[7px] md:text-[10px] font-black uppercase tracking-widest leading-none mt-1">{ticketType}</span>
                              </div>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-4">
-                             <div className="bg-white p-3 rounded-2xl border border-neutral-100 shadow-sm">
-                                <div className="text-[8px] font-black uppercase text-neutral-300 mb-1">Venue Logistics</div>
-                                <div className="text-[10px] font-bold text-neutral-900 uppercase truncate"><MapPin size={10} className="inline mr-1 text-indigo-500" /> {venue}</div>
+                          <div className="grid grid-cols-2 gap-2 md:gap-4">
+                             <div className="bg-white p-2 md:p-3 rounded-xl md:rounded-2xl border border-neutral-100 shadow-sm">
+                                <div className="text-[7px] md:text-[8px] font-black uppercase text-neutral-300 mb-0.5 md:mb-1">Venue Logistics</div>
+                                <div className="text-[8px] md:text-[10px] font-bold text-neutral-900 uppercase truncate"><MapPin size={8} className="inline mr-1 text-indigo-500" /> {venue}</div>
                              </div>
-                             <div className="bg-white p-3 rounded-2xl border border-neutral-100 shadow-sm">
-                                <div className="text-[8px] font-black uppercase text-neutral-300 mb-1">Temporal Window</div>
-                                <div className="text-[10px] font-bold text-neutral-900 uppercase"><Calendar size={10} className="inline mr-1 text-indigo-500" /> {date}</div>
+                             <div className="bg-white p-2 md:p-3 rounded-xl md:rounded-2xl border border-neutral-100 shadow-sm">
+                                <div className="text-[7px] md:text-[8px] font-black uppercase text-neutral-300 mb-0.5 md:mb-1">Temporal Window</div>
+                                <div className="text-[8px] md:text-[10px] font-bold text-neutral-900 uppercase"><Calendar size={8} className="inline mr-1 text-indigo-500" /> {date}</div>
                              </div>
                           </div>
                        </div>
 
                        {/* Image/Visual Block */}
-                       <div className="flex-1 flex flex-col gap-1 md:gap-2">
+                       <div className="flex-1 flex flex-col gap-[2px] md:gap-2">
                           <div className="flex-1 bg-neutral-900 rounded-[1rem] overflow-hidden relative group">
                              {featuredImage ? (
                                <img src={featuredImage} alt="featured" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                              ) : (
-                               <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-2">
-                                 <ImageIcon size={24} />
-                                 <span className="text-[8px] font-black uppercase">Visual Asset</span>
+                               <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-1">
+                                 <ImageIcon size={20} />
+                                 <span className="text-[6px] md:text-[8px] font-black uppercase">Visual Asset</span>
                                </div>
                              )}
                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                             <div className="absolute bottom-3 left-3 text-white">
-                                <div className="text-[8px] font-black uppercase text-white/50">Investment</div>
-                                <div className="text-sm font-black italic">UGX {price}</div>
+                             <div className="absolute bottom-2 left-2 md:bottom-3 md:left-3 text-white">
+                                <div className="text-[6px] md:text-[8px] font-black uppercase text-white/50">Investment</div>
+                                <div className="text-[10px] md:text-sm font-black italic">UGX {price}</div>
                              </div>
                           </div>
                           
-                          <div className="h-1/3 bg-neutral-100 rounded-[1rem] p-3 flex flex-col justify-center">
-                             <div className="text-[8px] font-black uppercase text-neutral-400 mb-1">Authentic Holder</div>
-                             <div className="text-xs font-black uppercase tracking-tighter text-neutral-900 truncate">{customerName}</div>
+                          <div className="h-1/4 md:h-1/3 bg-neutral-100 rounded-[1rem] p-2 md:p-3 flex flex-col justify-center">
+                             <div className="text-[6px] md:text-[8px] font-black uppercase text-neutral-400 mb-0.5">Authentic Holder</div>
+                             <div className="text-[8px] md:text-xs font-black uppercase tracking-tighter text-neutral-900 truncate">{customerName}</div>
                           </div>
                        </div>
 
                        {/* Validator Block */}
-                       <div className="flex-none w-24 md:w-32 bg-neutral-50 rounded-[1rem] p-3 flex flex-col items-center justify-center border-l border-neutral-100 relative overflow-hidden">
+                       <div className="flex-none w-20 md:w-32 bg-neutral-50 rounded-[1rem] p-2 md:p-3 flex flex-col items-center justify-center border-l border-neutral-100 relative overflow-hidden">
                           <div className="absolute -right-4 -top-4 w-12 h-12 bg-indigo-500/10 rounded-full blur-xl" />
-                          <div className="bg-white p-2 md:p-3 rounded-xl shadow-xl border border-neutral-100 relative z-10">
+                          <div className="bg-white p-1.5 md:p-3 rounded-xl shadow-xl border border-neutral-100 relative z-10 transition-transform hover:scale-110">
                             {codeType === 'qr' ? (
-                               <QRCodeCanvas value="TKT-SAMPLE-PROTOTYPE" size={80} level="H" fgColor="#000000" className="w-12 h-12 md:w-20 md:h-20" />
+                               <QRCodeCanvas value="TKT-SAMPLE-PROTOTYPE" size={80} level="H" fgColor="#000000" className="w-10 h-10 md:w-20 md:h-20" />
                             ) : (
                                <div className="flex flex-col items-center">
                                  <Barcode value="TKT-SAMPLE-CODE" width={0.4} height={20} displayValue={false} font="Inter" />
                                </div>
                             )}
                           </div>
-                          <div className="mt-4 text-[8px] font-black uppercase tracking-[0.3em] text-neutral-400 rotate-90 truncate">ID: {generateTicketId()}</div>
+                          <div className="mt-2 md:mt-4 text-[6px] md:text-[8px] font-black uppercase tracking-[0.3em] text-neutral-400 rotate-90 truncate">ID: {generateTicketId()}</div>
                        </div>
                     </div>
                   ) : layout === 'industrial' ? (
-                    <div className="flex-1 flex flex-col border-4 border-white m-2 box-border">
-                       <div className="bg-white text-neutral-900 p-4 flex justify-between items-center border-b-4 border-white">
-                          <div className="text-xl font-black italic tracking-tighter uppercase">{eventTitle}</div>
-                          <div className="px-3 py-1 bg-neutral-900 text-white text-[10px] font-black">{ticketType}</div>
+                    <div className="flex-1 flex flex-col border-[2px] md:border-4 border-white m-1 md:m-2 box-border overflow-hidden">
+                       <div className="bg-white text-neutral-900 p-2 md:p-4 flex justify-between items-center border-b-[2px] md:border-b-4 border-white">
+                          <div className="text-xs md:text-xl font-black italic tracking-tighter uppercase truncate pr-4">{eventTitle}</div>
+                          <div className="px-2 py-0.5 md:px-3 md:py-1 bg-neutral-900 text-white text-[7px] md:text-[10px] font-black">{ticketType}</div>
                        </div>
                        
-                       <div className="flex-1 flex">
-                          <div className="flex-1 p-6 border-r-4 border-white space-y-6">
-                             <div className="flex items-center gap-6">
-                                <div className="space-y-1">
-                                   <div className="text-[8px] font-black uppercase text-neutral-400">LOC_ID</div>
-                                   <div className="text-sm font-black uppercase">{venue}</div>
+                       <div className="flex-1 flex overflow-hidden">
+                          <div className="flex-1 p-3 md:p-6 border-r-[2px] md:border-r-4 border-white space-y-3 md:space-y-6">
+                             <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-6">
+                                <div className="space-y-0.5 md:space-y-1">
+                                   <div className="text-[6px] md:text-[8px] font-black uppercase text-neutral-400">LOC_ID</div>
+                                   <div className="text-[10px] md:text-sm font-black uppercase truncate max-w-[120px] md:max-w-none">{venue}</div>
                                 </div>
-                                <div className="space-y-1">
-                                   <div className="text-[8px] font-black uppercase text-neutral-400">TEMPORAL_MARK</div>
-                                   <div className="text-sm font-black uppercase">{date} // {time}</div>
+                                <div className="space-y-0.5 md:space-y-1">
+                                   <div className="text-[6px] md:text-[8px] font-black uppercase text-neutral-400">TEMPORAL_MARK</div>
+                                   <div className="text-[10px] md:text-sm font-black uppercase">{date} // {time}</div>
                                 </div>
                              </div>
 
-                             <div className="space-y-2">
-                                <div className="text-[8px] font-black uppercase text-neutral-400">ASSIGNED_OPERATOR</div>
-                                <div className="text-2xl font-black uppercase tracking-tighter border-2 border-white/20 p-4">{customerName}</div>
+                             <div className="space-y-1 md:space-y-2">
+                                <div className="text-[6px] md:text-[8px] font-black uppercase text-neutral-400">ASSIGNED_OPERATOR</div>
+                                <div className="text-sm md:text-2xl font-black uppercase tracking-tighter border-[1px] md:border-2 border-white/20 p-2 md:p-4 truncate">{customerName}</div>
                              </div>
 
-                             <div className="flex items-end justify-between">
-                                <div className="text-4xl font-black italic">UGX {price}</div>
-                                <div className="text-[10px] font-black uppercase text-neutral-500">Verified Protocol // 2026</div>
+                             <div className="flex items-end justify-between pt-1">
+                                <div className="text-xl md:text-4xl font-black italic">UGX {price}</div>
+                                <div className="hidden sm:block text-[8px] md:text-[10px] font-black uppercase text-neutral-500">Verified Protocol // 2026</div>
                              </div>
                           </div>
 
-                          <div className="w-32 bg-white flex flex-col items-center justify-center p-4">
-                             <div className="p-2 bg-white border-2 border-neutral-900">
+                          <div className="w-20 md:w-32 bg-white flex flex-col items-center justify-center p-2 md:p-4 shrink-0">
+                             <div className="p-1 md:p-2 bg-white border-[1px] md:border-2 border-neutral-900">
                                 {codeType === 'qr' ? (
-                                   <QRCodeCanvas value="TKT-SAMPLE-PROTOTYPE" size={80} level="H" fgColor="#000000" className="w-16 h-16" />
+                                   <QRCodeCanvas value="TKT-SAMPLE-PROTOTYPE" size={80} level="H" fgColor="#000000" className="w-10 h-10 md:w-16 md:h-16" />
                                 ) : (
                                    <Barcode value="TKT-SAMPLE-CODE" width={0.4} height={20} displayValue={false} font="Inter" />
                                 )}
                              </div>
-                             <div className="mt-4 rotate-90 text-[8px] font-black tracking-widest text-neutral-900">{generateTicketId()}</div>
+                             <div className="mt-2 md:mt-4 rotate-90 text-[6px] md:text-[8px] font-black tracking-widest text-neutral-900 whitespace-nowrap">{generateTicketId()}</div>
                           </div>
                        </div>
                     </div>
@@ -1186,16 +1202,12 @@ export default function TicketingTool() {
                   )}
 
                  {/* Perforation Effect */}
-                 {orientation === 'horizontal' && (
+                 {orientation === 'horizontal' && (layout !== 'bento' && layout !== 'industrial') && (
                     <>
-                      <div className={`hidden md:block absolute left-[15%] top-0 bottom-0 w-px border-l-2 border-dashed ${layout === 'industrial' ? 'border-white' : 'border-neutral-200'}`} />
-                      <div className={`hidden md:block absolute left-[15%] top-1/2 -translate-y-1/2 -ml-2.5 w-5 h-5 rounded-full shadow-inner ${layout === 'industrial' ? 'bg-neutral-900 border-2 border-white' : 'bg-neutral-50'}`} />
-                      <div className={`hidden md:block absolute left-[15%] top-0 -mt-2.5 -ml-2.5 w-5 h-5 rounded-full shadow-inner ${layout === 'industrial' ? 'bg-neutral-900 border-2 border-white' : 'bg-neutral-50'}`} />
-                      <div className={`hidden md:block absolute left-[15%] bottom-0 -mb-2.5 -ml-2.5 w-5 h-5 rounded-full shadow-inner ${layout === 'industrial' ? 'bg-neutral-900 border-2 border-white' : 'bg-neutral-50'}`} />
-                      
-                      {layout === 'bento' && (
-                        <div className="hidden md:block absolute right-[25%] top-0 bottom-0 w-px border-l-2 border-dashed border-neutral-100" />
-                      )}
+                       <div className="hidden md:block absolute left-[15%] top-0 bottom-0 w-px border-l-2 border-dashed border-neutral-200" />
+                       <div className="hidden md:block absolute left-[15%] top-1/2 -translate-y-1/2 -ml-2.5 w-5 h-5 bg-neutral-50 rounded-full shadow-inner" />
+                       <div className="hidden md:block absolute left-[15%] top-0 -mt-2.5 -ml-2.5 w-5 h-5 bg-neutral-50 rounded-full shadow-inner" />
+                       <div className="hidden md:block absolute left-[15%] bottom-0 -mb-2.5 -ml-2.5 w-5 h-5 bg-neutral-50 rounded-full shadow-inner" />
                     </>
                  )}
                  {orientation === 'vertical' && (

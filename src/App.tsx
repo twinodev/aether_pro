@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, LayoutGrid, Settings, HelpCircle, Menu, X, QrCode, Barcode, Camera, Sparkles, Repeat, Shield, Users, FileText, Mic, LogOut, FileImage, Globe, Tickets, Home as HomeIcon, Search as SearchIcon, Terminal, Brackets, Zap, Receipt } from 'lucide-react';
+import { ChevronLeft, LayoutGrid, Settings, HelpCircle, Menu, X, QrCode, Barcode, Camera, Sparkles, Repeat, Shield, Users, FileText, Mic, LogOut, FileImage, Globe, Tickets, Home as HomeIcon, Search as SearchIcon, Terminal, Brackets, Zap, Receipt, Store } from 'lucide-react';
 import Home from './components/Home.tsx';
 import QRBuilder from './components/tools/QRBuilder.tsx';
 import BarcodeBuilder from './components/tools/BarcodeBuilder.tsx';
@@ -13,6 +13,7 @@ import OcrTool from './components/tools/OcrTool.tsx';
 import LukuPredictor from './components/tools/LukuPredictor.tsx';
 import ReceiptLab from './components/tools/ReceiptLab.tsx';
 import MoMoIntelligence from './components/tools/MoMoIntelligence.tsx';
+import DukaSyncView from './components/DukaSyncView.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import SettingsView from './components/SettingsView.tsx';
 
@@ -22,13 +23,14 @@ import VipGate from './components/ui/VipGate.tsx';
 import BroadcastBanner from './components/ui/BroadcastBanner.tsx';
 import { User as UserIcon, Smartphone } from 'lucide-react';
 
-const PREMIUM_VIEWS: string[] = ['phone-sorter', 'ticketing', 'luku-predictor', 'receipt-lab', 'momo-intelligence'];
+const PREMIUM_VIEWS: string[] = ['phone-sorter', 'ticketing', 'luku-predictor', 'receipt-lab', 'momo-intelligence', 'duka-sync'];
 
-type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'ticketing' | 'ocr-tool' | 'luku-predictor' | 'receipt-lab' | 'momo-intelligence' | 'settings' | 'admin';
+type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'ticketing' | 'ocr-tool' | 'luku-predictor' | 'receipt-lab' | 'momo-intelligence' | 'settings' | 'admin' | 'duka-sync';
 
 const navItems: { id: View; label: string; icon: any; adminOnly?: boolean }[] = [
   { id: 'home', label: 'Home', icon: LayoutGrid },
   { id: 'momo-intelligence', label: 'MoMo', icon: Smartphone },
+  { id: 'duka-sync', label: 'DukaSync', icon: Store },
   { id: 'receipt-lab', label: 'POS', icon: Receipt },
   { id: 'luku-predictor', label: 'Energy', icon: Zap },
   { id: 'admin', label: 'Admin', icon: Shield, adminOnly: true },
@@ -57,7 +59,6 @@ export default function App() {
   const [showVipGate, setShowVipGate] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [pendingView, setPendingView] = useState<View | null>(null);
-  const [unlockedTools, setUnlockedTools] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [showLogin, setShowLogin] = useState(false);
   const { user, login, logout, loading, isVip, isAdmin } = useAuth();
@@ -84,19 +85,21 @@ export default function App() {
   }, []);
 
   const navigateTo = (view: string) => {
-    if (view !== currentView) {
-      setUnlockedTools(new Set());
-    }
-
     if (view !== 'home' && user) {
       const toolName = navItems.find(i => i.id === view)?.label || view;
       import('./services/activityService').then(m => m.logActivity(user.uid, view, toolName));
     }
 
-    if (PREMIUM_VIEWS.includes(view) && !isVip && !unlockedTools.has(view)) {
-      setPendingView(view as View);
-      setShowVipGate(true);
-      return;
+    if (PREMIUM_VIEWS.includes(view)) {
+      if (!user) {
+        setShowLogin(true);
+        return;
+      }
+      if (!isVip) {
+        setPendingView(view as View);
+        setShowVipGate(true);
+        return;
+      }
     }
 
     // Update Hash instead of just state
@@ -142,7 +145,6 @@ export default function App() {
               toolName={navItems.find(i => i.id === (pendingView || currentView))?.label || 'Premium Tool'} 
               onUnlocked={() => {
                 if (pendingView) {
-                  setUnlockedTools(prev => new Set(prev).add(pendingView));
                   setCurrentView(pendingView);
                   setPendingView(null);
                 }
@@ -158,9 +160,7 @@ export default function App() {
         {(() => {
           switch (currentView) {
             case 'home':
-              return <Home onSelectTool={navigateTo} onUnlockAll={() => {
-                setUnlockedTools(new Set(PREMIUM_VIEWS));
-              }} />;
+              return <Home onSelectTool={navigateTo} />;
             case 'qr-builder':
               return <QRBuilder />;
             case 'barcode-builder':
@@ -177,6 +177,8 @@ export default function App() {
               return <LukuPredictor />;
             case 'momo-intelligence':
               return <MoMoIntelligence />;
+            case 'duka-sync':
+              return <DukaSyncView />;
             case 'receipt-lab':
               return <ReceiptLab />;
             case 'ticketing':

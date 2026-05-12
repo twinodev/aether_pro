@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ShoppingCart, Plus, Minus, Trash2, Receipt, Download, Share2, User, Printer, Tag, Calculator, Settings, Building2, MapPin, Phone, Shield } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, Receipt, Download, Share2, User, Printer, Tag, Calculator, Settings, Building2, MapPin, Phone, Shield, FileText, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import OfflineAlert from '../ui/OfflineAlert';
+import { useReactToPrint } from 'react-to-print';
+import { jsPDF } from 'jspdf';
+import { toPng } from 'html-to-image';
 
 interface CartItem {
   id: string;
@@ -54,11 +57,114 @@ export default function ReceiptLab() {
   const [showReceipt, setShowReceipt] = useState(false);
   const receiptRef = useRef<HTMLDivElement>(null);
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = useReactToPrint({
+    contentRef: receiptRef,
+  });
+
+  const handleDownloadPDF = () => {
+    if (!receiptRef.current) return;
+    
+    const doc = new jsPDF({
+      orientation: 'p',
+      unit: 'mm',
+      format: [80, 200] // 80mm roll width
+    });
+
+    const content = receiptRef.current;
+    
+    // Simple PDF generation for the receipt
+    doc.setFont('courier', 'bold');
+    doc.setFontSize(14);
+    doc.text(businessInfo.name || 'RECEIPT LAB', 40, 15, { align: 'center' });
+    
+    doc.setFontSize(8);
+    let y = 22;
+    if (businessInfo.address) { doc.text(businessInfo.address, 40, y, { align: 'center' }); y += 4; }
+    if (businessInfo.phone) { doc.text(`TEL: ${businessInfo.phone}`, 40, y, { align: 'center' }); y += 4; }
+    if (businessInfo.tin) { doc.text(`TIN: ${businessInfo.tin}`, 40, y, { align: 'center' }); y += 4; }
+    
+    y += 5;
+    doc.text(`DATE: ${new Date().toLocaleDateString()}`, 5, y);
+    doc.text(`NO: ${currentReceiptNumber}`, 75, y, { align: 'right' });
+    
+    y += 5;
+    doc.text("------------------------------------------", 40, y, { align: 'center' });
+    
+    if (customerName) {
+      y += 5;
+      doc.text(`CUSTOMER: ${customerName.toUpperCase()}`, 5, y);
+    }
+    
+    y += 8;
+    items.forEach(item => {
+      doc.text(`${item.name}`, 5, y);
+      y += 4;
+      doc.text(`${item.quantity} x ${item.price.toLocaleString()}`, 10, y);
+      doc.text(`${(item.price * item.quantity).toLocaleString()}`, 75, y, { align: 'right' });
+      y += 6;
+    });
+    
+    y += 2;
+    doc.text("------------------------------------------", 40, y, { align: 'center' });
+    
+    y += 6;
+    doc.text(`SUBTOTAL:`, 5, y);
+    doc.text(`${subtotal.toLocaleString()}`, 75, y, { align: 'right' });
+    
+    y += 5;
+    doc.text(`VAT (18%):`, 5, y);
+    doc.text(`${tax.toLocaleString()}`, 75, y, { align: 'right' });
+    
+    y += 8;
+    doc.setFontSize(12);
+    doc.text(`TOTAL ${currency}:`, 5, y);
+    doc.text(`${total.toLocaleString()}`, 75, y, { align: 'right' });
+    
+    y += 15;
+    doc.setFontSize(8);
+    doc.text("*** THANK YOU *** ", 40, y, { align: 'center' });
+
+    doc.save(`receipt-${currentReceiptNumber}.pdf`);
+  };
+
+  const handleExportImage = async () => {
+    if (!receiptRef.current) return;
+    try {
+      const dataUrl = await toPng(receiptRef.current, {
+        backgroundColor: '#ffffff',
+        style: {
+          padding: '20px',
+        }
+      });
+      const link = document.createElement('a');
+      link.download = `receipt-${currentReceiptNumber}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error('Error exporting image:', err);
+    }
   };
 
   const handleShare = async () => {
+    // If possible, share as image
+    if (navigator.share && navigator.canShare && receiptRef.current) {
+      try {
+        const dataUrl = await toPng(receiptRef.current, { backgroundColor: '#ffffff' });
+        const blob = await (await fetch(dataUrl)).blob();
+        const file = new File([blob], `receipt-${currentReceiptNumber}.png`, { type: 'image/png' });
+        
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: `Receipt ${currentReceiptNumber}`,
+          });
+          return;
+        }
+      } catch (err) {
+        console.error('Error sharing image, falling back to text:', err);
+      }
+    }
+
     const text = `
 RECEIPT: ${currentReceiptNumber}
 DATE: ${new Date().toLocaleDateString()}
@@ -186,6 +292,30 @@ TOTAL: ${total.toLocaleString()} ${currency}
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-8">
+      {/* Print Styles */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
+          body {
+            background: white !important;
+            margin: 0;
+            padding: 0;
+          }
+          .no-print {
+            display: none !important;
+          }
+          .print-receipt {
+            width: 80mm !important;
+            padding: 10mm !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+          }
+        }
+      `}} />
       <header className="mb-12 no-print">
         <OfflineAlert toolName="Receipt Lab" />
         <div className="flex items-center gap-4 mb-2">
@@ -617,16 +747,28 @@ TOTAL: ${total.toLocaleString()} ${currency}
                   </div>
 
                   {/* Actions */}
-                  <div className="mt-8 grid grid-cols-2 gap-3 no-print">
+                  <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3 no-print">
                     <button 
-                      onClick={handlePrint}
+                      onClick={() => handlePrint()}
                       className="flex items-center justify-center gap-2 py-3 bg-neutral-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-black transition-all"
                     >
                       <Printer size={14} /> Print
                     </button>
                     <button 
+                      onClick={handleDownloadPDF}
+                      className="flex items-center justify-center gap-2 py-3 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all font-mono"
+                    >
+                      <FileText size={14} /> PDF
+                    </button>
+                    <button 
+                      onClick={handleExportImage}
+                      className="flex items-center justify-center gap-2 py-3 bg-neutral-100 text-neutral-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-neutral-200 transition-all font-mono"
+                    >
+                      <ImageIcon size={14} /> IMG
+                    </button>
+                    <button 
                       onClick={handleShare}
-                      className="flex items-center justify-center gap-2 py-3 border border-neutral-100 text-neutral-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:border-neutral-200 transition-all"
+                      className="flex items-center justify-center gap-2 py-3 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-100 transition-all font-mono sm:col-span-1"
                     >
                       <Share2 size={14} /> Share
                     </button>
