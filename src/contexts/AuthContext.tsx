@@ -13,9 +13,11 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, googleProvider, db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { UserProfile } from '../services/userService';
 
 interface AuthContextType {
   user: User | null;
+  profile: UserProfile | null;
   loading: boolean;
   isVip: boolean;
   isAdmin: boolean;
@@ -33,6 +35,7 @@ const ADMIN_EMAIL = 'tjuniemma@gmail.com';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isVip, setIsVip] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -51,7 +54,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         const unsubDoc = onSnapshot(userRef, (docSnap) => {
           if (docSnap.exists()) {
-            const data = docSnap.data();
+            const data = docSnap.data() as UserProfile;
+            setProfile(data);
             const isAdminUser = firebaseUser.email === ADMIN_EMAIL || data.isAdmin;
             const now = new Date();
             const expiry = data.vipExpiry ? new Date(data.vipExpiry) : null;
@@ -98,6 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
         return () => unsubDoc();
       } else {
+        setProfile(null);
         setIsVip(false);
         setIsAdmin(false);
         setLoading(false);
@@ -155,6 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={{ 
       user, 
+      profile,
       loading, 
       isVip, 
       isAdmin, 

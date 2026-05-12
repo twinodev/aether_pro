@@ -11,6 +11,18 @@
         "photoURL": { "type": "string" },
         "isVip": { "type": "boolean" },
         "isAdmin": { "type": "boolean" },
+        "business": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "address": { "type": "string" },
+            "phone": { "type": "string" },
+            "email": { "type": "string" },
+            "taxId": { "type": "string" },
+            "currency": { "type": "string" },
+            "logoUrl": { "type": "string" }
+          }
+        },
         "trialActivatedAt": { "type": "string", "format": "date-time" },
         "vipExpiry": { "type": "string", "format": "date-time" },
         "billingCycle": { "type": "string", "enum": ["monthly", "annually", "lifetime", "none"] },

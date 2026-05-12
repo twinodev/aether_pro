@@ -6,6 +6,42 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+@media print {
+  @page {
+    margin: 0;
+    size: auto;
+  }
+  body * {
+    visibility: hidden;
+  }
+  #receipt-print-zone, #receipt-print-zone *,
+  #report-print-zone, #report-print-zone * {
+    visibility: visible;
+  }
+  #receipt-print-zone {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm; /* Standard thermal width */
+    margin: 0 auto;
+    padding: 10mm 5mm;
+    background: white !important;
+    font-family: var(--font-mono);
+    color: black !important;
+    print-color-adjust: exact;
+  }
+  #report-print-zone {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20mm;
+    background: white !important;
+    print-color-adjust: exact;
+  }
+}
+
 @variant dark (&:where(.dark, .dark *));
 
 @layer base {

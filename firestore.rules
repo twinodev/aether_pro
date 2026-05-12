@@ -24,6 +24,12 @@ service cloud.firestore {
         && data.get('email', '') is string && data.get('email', '').size() <= 256
         && (data.get('displayName', '') is string || data.get('displayName', null) == null)
         && (data.get('photoURL', '') is string || data.get('photoURL', null) == null)
+        && (data.get('business', null) == null || (
+          data.business.get('name', '') is string &&
+          (data.business.get('address', '') is string || !('address' in data.business)) &&
+          (data.business.get('phone', '') is string || !('phone' in data.business)) &&
+          (data.business.get('currency', 'KES') is string)
+        ))
         && data.get('isVip', false) is bool
         && data.get('isAdmin', false) is bool
         && (data.get('createdAt', '') is string || data.get('createdAt', null) is timestamp);
@@ -89,6 +95,71 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin() && isValidBroadcast(incoming());
       allow delete: if isAdmin();
+    }
+
+    // Duka Systems
+    function isValidProduct(data) {
+      return data.name is string && data.name.size() <= 200
+        && data.sku is string && data.sku.size() <= 100
+        && (data.category is string || data.category == null || !('category' in data))
+        && (data.barcode is string || data.barcode == null || !('barcode' in data))
+        && data.price is number
+        && (data.cost is number || data.cost == null || !('cost' in data))
+        && (data.unit is string || data.unit == null || !('unit' in data))
+        && (data.imageUrl is string || data.imageUrl == null || !('imageUrl' in data))
+        && (data.createdAt is timestamp || data.createdAt == null || !('createdAt' in data));
+    }
+
+    function isValidLocation(data) {
+      return data.name is string && data.name.size() <= 200
+        && (data.address is string || data.address == null || !('address' in data))
+        && (data.phone is string || data.phone == null || !('phone' in data))
+        && data.ownerId == request.auth.uid;
+    }
+
+    function isValidInventoryItem(data) {
+      return data.quantity is number
+        && (data.minStockLevel is number || data.minStockLevel == null || !('minStockLevel' in data))
+        && (data.lastRestockedAt is timestamp || data.lastRestockedAt == null || !('lastRestockedAt' in data))
+        && (data.productId is string || !('productId' in data))
+        && (data.locationId is string || !('locationId' in data));
+    }
+
+    function isValidSale(data) {
+      return data.items is list
+        && data.total is number
+        && data.paymentMethod in ['mpesa', 'cash', 'credit']
+        && data.locationId is string
+        && data.userId == request.auth.uid
+        && (data.timestamp is timestamp || data.timestamp == null || !('timestamp' in data));
+    }
+
+    match /products/{productId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidProduct(incoming());
+      allow update, delete: if isAdmin();
+    }
+
+    match /locations/{locationId} {
+      function isLocationOwner(locId) {
+        return get(/databases/$(database)/documents/locations/$(locId)).data.ownerId == request.auth.uid;
+      }
+
+      allow get: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidLocation(incoming());
+      allow update: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin()) && isValidLocation(incoming());
+      allow delete: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+
+      match /inventory/{productId} {
+        allow read: if isLocationOwner(locationId) || isAdmin();
+        allow write: if (isLocationOwner(locationId) || isAdmin()) && isValidInventoryItem(incoming());
+      }
+
+      match /sales/{saleId} {
+        allow read: if isLocationOwner(locationId) || isAdmin();
+        allow create: if isLocationOwner(locationId) && isValidSale(incoming());
+      }
     }
   }
 }

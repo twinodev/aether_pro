@@ -1,6 +1,16 @@
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDocs } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 
+export interface BusinessInfo {
+  name: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  taxId?: string;
+  currency: string;
+  logoUrl?: string;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -8,11 +18,21 @@ export interface UserProfile {
   photoURL: string;
   isVip: boolean;
   isAdmin: boolean;
+  business?: BusinessInfo;
   trialActivatedAt?: string;
   vipExpiry?: string;
   billingCycle?: 'monthly' | 'annually' | 'lifetime' | 'none';
   createdAt: string;
 }
+
+export const updateBusinessProfile = async (uid: string, business: BusinessInfo) => {
+  const userRef = doc(db, 'users', uid);
+  try {
+    await updateDoc(userRef, { business });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
+  }
+};
 
 export const subscribeToAllUsers = (callback: (users: UserProfile[]) => void) => {
   const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));

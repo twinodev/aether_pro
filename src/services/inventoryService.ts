@@ -97,25 +97,42 @@ export const subscribeToInventory = (locationId: string, callback: (items: Inven
   }, (err) => handleFirestoreError(err, OperationType.LIST, `locations/${locationId}/inventory`));
 };
 
-export const updateStockLevel = async (locationId: string, productId: string, quantityChange: number) => {
+export const updateStockLevel = async (locationId: string, productId: string, quantityChange: number, minStockLevel: number = 0) => {
   try {
     const invRef = doc(db, 'locations', locationId, 'inventory', productId);
-    await updateDoc(invRef, {
+    await setDoc(invRef, {
+      productId,
+      locationId,
       quantity: increment(quantityChange),
+      minStockLevel: increment(0), // Ensure it stays same if exists, or initialize to 0
       lastRestockedAt: quantityChange > 0 ? serverTimestamp() : undefined
-    });
+    }, { merge: true });
+
+    // Ensure minStockLevel is set if it's a new entry and we provided a value
+    if (minStockLevel > 0) {
+      await updateDoc(invRef, { minStockLevel });
+    }
   } catch (err) {
-    handleFirestoreError(err, OperationType.UPDATE, `locations/${locationId}/inventory/${productId}`);
+    handleFirestoreError(err, OperationType.WRITE, `locations/${locationId}/inventory/${productId}`);
   }
 };
 
 // Sales Services
+export const subscribeToSales = (locationId: string, callback: (sales: Sale[]) => void) => {
+  const q = collection(db, 'locations', locationId, 'sales');
+  return onSnapshot(q, (snapshot) => {
+    callback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Sale[]);
+  }, (err) => handleFirestoreError(err, OperationType.LIST, `locations/${locationId}/sales`));
+};
+
 export const recordSale = async (sale: Omit<Sale, 'id' | 'timestamp'>) => {
   try {
     const batch = writeBatch(db);
     
     // 1. Create sale record
     const saleRef = doc(collection(db, 'locations', sale.locationId, 'sales'));
+    const saleId = saleRef.id;
+    
     batch.set(saleRef, {
       ...sale,
       timestamp: serverTimestamp()
@@ -130,7 +147,9 @@ export const recordSale = async (sale: Omit<Sale, 'id' | 'timestamp'>) => {
     }
 
     await batch.commit();
+    return saleId;
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `locations/${sale.locationId}/sales`);
+    throw err;
   }
 };
