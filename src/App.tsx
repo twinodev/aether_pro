@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, LayoutGrid, Settings, HelpCircle, Menu, X, QrCode, Barcode, Camera, Sparkles, Repeat, Shield, Users, FileText, Mic, LogOut, FileImage, Globe, Tickets, Home as HomeIcon, Search as SearchIcon, Terminal, Brackets, Zap, Receipt, Store } from 'lucide-react';
+import { ChevronLeft, LayoutGrid, Settings, HelpCircle, Menu, X, QrCode, Barcode, Camera, Sparkles, Repeat, Shield, Users, FileText, Mic, LogOut, FileImage, Globe, Tickets, Home as HomeIcon, Search as SearchIcon, Terminal, Brackets, Zap, Receipt, Store, Printer } from 'lucide-react';
 import Home from './components/Home.tsx';
 import QRBuilder from './components/tools/QRBuilder.tsx';
 import BarcodeBuilder from './components/tools/BarcodeBuilder.tsx';
@@ -23,7 +23,7 @@ import VipGate from './components/ui/VipGate.tsx';
 import BroadcastBanner from './components/ui/BroadcastBanner.tsx';
 import { User as UserIcon, Smartphone } from 'lucide-react';
 
-const PREMIUM_VIEWS: string[] = ['phone-sorter', 'ticketing', 'luku-predictor', 'receipt-lab', 'momo-intelligence', 'duka-sync'];
+const PREMIUM_VIEWS: string[] = ['ticketing', 'luku-predictor', 'receipt-lab', 'momo-intelligence', 'duka-sync'];
 
 type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'ticketing' | 'ocr-tool' | 'luku-predictor' | 'receipt-lab' | 'momo-intelligence' | 'settings' | 'admin' | 'duka-sync';
 
@@ -54,6 +54,7 @@ const getInitialView = (): View => {
 };
 
 export default function App() {
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
   const [currentView, setCurrentView] = useState<View>(getInitialView());
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showVipGate, setShowVipGate] = useState(false);
@@ -206,56 +207,82 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#fafafa] dark:bg-neutral-950">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-20 lg:w-72 bg-white dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 h-screen sticky top-0 z-50">
-        <div className="p-8 flex items-center justify-center lg:justify-start gap-4">
-          <div className="w-12 h-12 flex items-center justify-center shrink-0 transform hover:scale-105 transition-transform cursor-pointer" onClick={() => navigateTo('home')}>
-             <img src="/logo.svg" alt="Logo" className="w-full h-full" />
+      <aside className={`hidden md:flex flex-col ${isSidebarExpanded ? 'w-72' : 'w-24'} bg-white dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 h-screen sticky top-0 z-50 transition-all duration-300 ease-in-out`}>
+        <div className={`p-8 flex items-center ${isSidebarExpanded ? 'justify-between' : 'justify-center'} gap-4`}>
+          <div className="flex items-center gap-4 cursor-pointer" onClick={() => navigateTo('home')}>
+            <div className="w-12 h-12 flex items-center justify-center shrink-0 transform hover:scale-105 transition-transform">
+               <img src="/logo.svg" alt="Logo" className="w-full h-full" />
+            </div>
+            {isSidebarExpanded && (
+              <div className="flex flex-col">
+                <span className="font-black tracking-tighter text-2xl uppercase leading-none dark:text-white">AETHER</span>
+                <span className="text-[10px] font-black text-rose-600 uppercase tracking-[0.2em] mt-1">Experimental</span>
+              </div>
+            )}
           </div>
-          <div className="hidden lg:flex flex-col">
-            <span className="font-black tracking-tighter text-2xl uppercase leading-none dark:text-white">AETHER</span>
-            <span className="text-[10px] font-black text-rose-600 uppercase tracking-[0.2em] mt-1">Experimental</span>
-          </div>
+          <button 
+            onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
+            className={`p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-all text-neutral-400 ${!isSidebarExpanded ? 'hidden' : ''}`}
+          >
+            <ChevronLeft size={20} />
+          </button>
         </div>
 
+        {!isSidebarExpanded && (
+          <div className="flex justify-center mb-6">
+            <button 
+              onClick={() => setIsSidebarExpanded(true)}
+              className="p-3 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 rounded-xl shadow-lg"
+            >
+              <Menu size={20} />
+            </button>
+          </div>
+        )}
+
         {/* Desktop Search */}
-        <div className="px-6 mb-4 hidden lg:block">
-           <div className="relative group">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-neutral-900 transition-colors">
-                 <SearchIcon size={14} />
-              </div>
-              <input 
-                type="text"
-                placeholder="Search tools..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-11 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-800 rounded-xl pl-10 pr-4 text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:ring-4 focus:ring-neutral-900/5 dark:focus:ring-white/5 focus:border-neutral-200 dark:focus:border-neutral-700 transition-all text-neutral-900 dark:text-white"
-              />
-           </div>
-        </div>
+        {isSidebarExpanded && (
+          <div className="px-6 mb-4 hidden lg:block">
+             <div className="relative group">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-neutral-900 transition-colors">
+                   <SearchIcon size={14} />
+                </div>
+                <input 
+                  type="text"
+                  placeholder="Search tools..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full h-11 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-800 rounded-xl pl-10 pr-4 text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:ring-4 focus:ring-neutral-900/5 dark:focus:ring-white/5 focus:border-neutral-200 dark:focus:border-neutral-700 transition-all text-neutral-900 dark:text-white"
+                />
+             </div>
+          </div>
+        )}
 
         <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto custom-scrollbar min-h-0">
           {filteredNavItems.map((item) => (
             <button
               key={item.id}
               onClick={() => navigateTo(item.id)}
-              className={`w-full flex items-center gap-4 px-4 h-12 rounded-xl transition-all relative group shrink-0 ${
+              className={`w-full flex items-center ${isSidebarExpanded ? 'justify-start gap-4 px-4' : 'justify-center'} h-13 rounded-xl transition-all relative group shrink-0 ${
                 currentView === item.id
                   ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-xl shadow-neutral-900/10 dark:shadow-white/5'
                   : 'text-neutral-500 hover:bg-neutral-100/50 hover:text-neutral-900 dark:hover:bg-neutral-800/50 dark:hover:text-white'
               }`}
+              title={!isSidebarExpanded ? item.label : ''}
             >
-              <item.icon size={18} className={`shrink-0 transition-transform ${currentView === item.id ? 'scale-110' : 'group-hover:scale-110'}`} />
-              <span className="hidden lg:block text-[11px] font-black uppercase tracking-widest">{item.label}</span>
+              <item.icon size={20} strokeWidth={currentView === item.id ? 2.5 : 2} className={`shrink-0 transition-transform ${currentView === item.id ? 'scale-110' : 'group-hover:scale-110'}`} />
+              {isSidebarExpanded && (
+                <span className="text-[11px] font-black uppercase tracking-widest">{item.label}</span>
+              )}
               
-              {currentView === item.id && (
+              {currentView === item.id && isSidebarExpanded && (
                 <motion.div 
                   layoutId="active-indicator" 
-                  className="absolute right-2 w-1 h-1 bg-white rounded-full lg:block hidden" 
+                  className="absolute right-2 w-1.5 h-1.5 bg-white dark:bg-neutral-900 rounded-full" 
                 />
               )}
             </button>
           ))}
-          {filteredNavItems.length === 0 && (
+          {filteredNavItems.length === 0 && isSidebarExpanded && (
             <div className="py-8 text-center px-4">
               <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">No tools found</p>
             </div>
@@ -266,22 +293,24 @@ export default function App() {
           {user && (
             <button 
               onClick={() => setShowLogoutConfirm(true)}
-              className="w-full flex items-center justify-center lg:justify-start gap-4 px-4 h-12 rounded-2xl text-rose-600 hover:bg-rose-50 transition-all font-bold"
+              className={`w-full flex items-center ${isSidebarExpanded ? 'justify-start gap-4 px-4' : 'justify-center'} h-12 rounded-2xl text-rose-600 hover:bg-rose-50 transition-all font-bold`}
+              title={!isSidebarExpanded ? 'Logout' : ''}
             >
-              <LogOut size={20} />
-              <span className="hidden lg:block text-xs font-black uppercase tracking-widest">Logout Session</span>
+              <LogOut size={20} strokeWidth={2.5} />
+              {isSidebarExpanded && <span className="text-xs font-black uppercase tracking-widest">Logout</span>}
             </button>
           )}
           <button 
             onClick={() => navigateTo('settings')}
-            className={`w-full flex items-center justify-center lg:justify-start gap-4 px-4 h-12 rounded-2xl transition-all ${
+            className={`w-full flex items-center ${isSidebarExpanded ? 'justify-start gap-4 px-4' : 'justify-center'} h-12 rounded-2xl transition-all ${
               currentView === 'settings' 
               ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900' 
               : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white'
             }`}
+            title={!isSidebarExpanded ? 'Settings' : ''}
           >
             <Settings size={20} />
-            <span className="hidden lg:block text-xs font-bold uppercase tracking-widest">Settings</span>
+            {isSidebarExpanded && <span className="text-xs font-bold uppercase tracking-widest">Settings</span>}
           </button>
         </div>
       </aside>

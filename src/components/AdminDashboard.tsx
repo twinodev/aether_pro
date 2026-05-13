@@ -22,7 +22,7 @@ import {
   Globe
 } from 'lucide-react';
 import { subscribeToAllActivities, Activity } from '../services/activityService';
-import { subscribeToAllUsers, toggleUserVip, grantVipAccess, UserProfile } from '../services/userService';
+import { subscribeToAllUsers, toggleUserVip, grantVipAccess, verifyAgent, UserProfile } from '../services/userService';
 import { subscribeToBroadcasts, createBroadcast, deleteBroadcast, updateBroadcastStatus, Broadcast } from '../services/broadcastService';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -277,6 +277,11 @@ export default function AdminDashboard() {
                              ) : (
                                <span className="px-3 py-1 bg-neutral-100 text-neutral-400 text-[8px] font-black uppercase tracking-widest rounded-full">Standard Tier</span>
                              )}
+                             {user.isVerifiedAgent && (
+                               <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-[8px] font-black uppercase tracking-widest rounded-full flex items-center gap-1 w-fit mt-1">
+                                  <Shield size={8} /> Verified Agent
+                               </span>
+                             )}
                           </td>
                           <td className="px-10 py-6">
                              <div className="text-[10px] font-bold text-neutral-500 uppercase">
@@ -286,9 +291,19 @@ export default function AdminDashboard() {
                                <div className="text-[7px] font-black text-emerald-500 uppercase mt-1">Trial Used</div>
                              )}
                           </td>
-                          <td className="px-10 py-6 text-right">
+                           <td className="px-10 py-6 text-right">
                              {!user.isAdmin && (
                                <div className="flex items-center justify-end gap-2">
+                                  <button 
+                                    onClick={() => verifyAgent(user.uid, !user.isVerifiedAgent)}
+                                    className={`px-3 py-2 rounded-lg text-[7px] font-black uppercase transition-all ${
+                                      user.isVerifiedAgent 
+                                      ? 'text-rose-600 bg-rose-50 border border-rose-100' 
+                                      : 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20'
+                                    }`}
+                                  >
+                                    {user.isVerifiedAgent ? 'De-Verify' : 'Verify Agent'}
+                                  </button>
                                   {user.isVip ? (
                                     <button 
                                       onClick={() => toggleUserVip(user.uid, user.isVip)}
@@ -323,7 +338,7 @@ export default function AdminDashboard() {
                                   </button>
                                </div>
                              )}
-                          </td>
+                           </td>
                         </motion.tr>
                       ))}
                     </AnimatePresence>

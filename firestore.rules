@@ -9,13 +9,13 @@ service cloud.firestore {
     // Global Helpers
     function isSignedIn() { return request.auth != null; }
     function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
-    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid && request.auth.token.email_verified == true; }
     function isAdmin() { 
-      return isVerified() && (
+      return isSignedIn() && request.auth.token.email_verified == true && (
         request.auth.token.email == 'tjuniemma@gmail.com'
       ); 
     }
-    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function isValidId(id) { return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
 
@@ -33,6 +33,8 @@ service cloud.firestore {
         ))
         && data.get('isVip', false) is bool
         && data.get('isAdmin', false) is bool
+        && (data.get('isVerifiedAgent', false) is bool || !('isVerifiedAgent' in data))
+        && (data.get('agentVerificationDate', null) == null || data.get('agentVerificationDate', '') is string || data.get('agentVerificationDate', null) is timestamp)
         && (data.get('createdAt', '') is string || data.get('createdAt', null) is timestamp);
     }
 
@@ -51,7 +53,9 @@ service cloud.firestore {
              incoming().get('uid', '') == existing().get('uid', '') &&
              incoming().get('email', '') == existing().get('email', '') &&
              incoming().get('isVip', false) == existing().get('isVip', false) &&
-             incoming().get('isAdmin', false) == existing().get('isAdmin', false)
+             incoming().get('isAdmin', false) == existing().get('isAdmin', false) &&
+             incoming().get('isVerifiedAgent', false) == existing().get('isVerifiedAgent', false) &&
+             incoming().get('agentVerificationDate', null) == existing().get('agentVerificationDate', null)
            ));
         
       match /activities/{activityId} {
@@ -133,7 +137,7 @@ service cloud.firestore {
     function isValidSale(data) {
       return data.items is list
         && data.total is number
-        && data.paymentMethod in ['mpesa', 'cash', 'credit']
+        && data.paymentMethod in ['momo', 'cash', 'credit']
         && data.locationId is string
         && data.userId == request.auth.uid
         && (data.timestamp is timestamp || data.timestamp == null || !('timestamp' in data));
@@ -172,10 +176,10 @@ service cloud.firestore {
       }
 
       allow get: if isVerified() && (resource.data.ownerId == request.auth.uid || hasMembership(locationId) || isAdmin());
-      allow list: if isVerified(); // App filters by ownerId or membership
+      allow list: if isVerified() && (resource.data.ownerId == request.auth.uid || hasMembership(locationId) || isAdmin());
       allow create: if isVerified() && isValidLocation(incoming());
       allow update: if isVerified() && (resource.data.ownerId == request.auth.uid || isAdmin()) && isValidLocation(incoming());
-      allow delete: if isAdmin();
+      allow delete: if isVerified() && (resource.data.ownerId == request.auth.uid || isAdmin());
 
       match /memberships/{userId} {
         allow read: if isVerified() && (isLocationOwner(locationId) || request.auth.uid == userId || isAdmin());

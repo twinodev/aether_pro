@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { QrCode, ArrowRight, Barcode as BarcodeIcon, Camera, Repeat, Shield, Users, FileText, Clock, Sparkles, Check, Tickets, Zap, Receipt, Smartphone, Link as LinkIcon, Store } from 'lucide-react';
+import { QrCode, ArrowRight, Barcode as BarcodeIcon, Camera, Repeat, Shield, Users, FileText, Clock, Sparkles, Check, Tickets, Zap, Receipt, Smartphone, Link as LinkIcon, Store, Printer } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
 import { subscribeToRecentActivities, Activity } from '../services/activityService';
@@ -100,33 +100,23 @@ export default function Home({ onSelectTool }: { onSelectTool: (id: string) => v
 
   const tools = [
     {
-      id: 'momo-intelligence',
-      title: 'MoMo Intelligence',
-      description: 'Multi-network (MPESA/MTN/Airtel) fee protocol.',
-      icon: <Smartphone size={24} />,
-      color: 'bg-emerald-500',
-      featured: true,
-      category: 'finance',
-      vip: true
-    },
-    {
-      id: 'receipt-lab',
-      title: 'Receipt Lab',
-      description: 'Digital POS for East African retail.',
-      icon: <Receipt size={24} />,
-      color: 'bg-indigo-600',
-      featured: true,
-      category: 'finance',
-      vip: true
-    },
-    {
       id: 'duka-sync',
       title: 'Duka Sync',
-      description: 'Distributed inventory & shop management.',
+      description: 'Distributed inventory & shop management. Essential for Aether Pro users.',
       icon: <Store size={24} />,
       color: 'bg-rose-600',
       featured: true,
       category: 'ops',
+      vip: true
+    },
+    {
+      id: 'momo-intelligence',
+      title: 'MoMo Intelligence',
+      description: 'Multi-network (MOBILE MONEY/MTN/Airtel) fee protocol.',
+      icon: <Smartphone size={24} />,
+      color: 'bg-emerald-500',
+      featured: true,
+      category: 'finance',
       vip: true
     },
     {
@@ -333,7 +323,7 @@ export default function Home({ onSelectTool }: { onSelectTool: (id: string) => v
       >
         {filteredTools.map((tool) => (
           <div key={tool.id} className={`
-             ${activeCategory === 'all' && (tool.id === 'momo-intelligence' || tool.id === 'receipt-lab') ? 'lg:col-span-2 lg:row-span-1' : ''}
+             ${activeCategory === 'all' && (tool.id === 'duka-sync' || tool.id === 'momo-intelligence') ? 'lg:col-span-2 lg:row-span-1' : ''}
              ${activeCategory === 'all' && tool.id === 'phone-sorter' ? 'lg:col-span-2 lg:row-span-2' : ''}
              relative
           `}>

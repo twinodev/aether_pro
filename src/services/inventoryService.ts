@@ -50,7 +50,7 @@ export interface Sale {
   id: string;
   items: Array<{ productId: string, quantity: number, price: number }>;
   total: number;
-  paymentMethod: 'mpesa' | 'cash' | 'credit';
+  paymentMethod: 'momo' | 'cash' | 'credit';
   locationId: string;
   userId: string;
   timestamp: any;
@@ -111,6 +111,24 @@ export const createLocation = async (location: Omit<Location, 'id'>) => {
     return await addDoc(collection(db, 'locations'), location);
   } catch (err) {
     handleFirestoreError(err, OperationType.CREATE, 'locations');
+  }
+};
+
+export const updateLocation = async (locationId: string, updates: Partial<Location>) => {
+  try {
+    const locationRef = doc(db, 'locations', locationId);
+    await updateDoc(locationRef, updates);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `locations/${locationId}`);
+  }
+};
+
+export const deleteLocation = async (locationId: string) => {
+  try {
+    const locationRef = doc(db, 'locations', locationId);
+    await deleteDoc(locationRef);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `locations/${locationId}`);
   }
 };
 
@@ -234,5 +252,36 @@ export const validateScan = async (locationId: string, userId: string, code: str
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `locations/${locationId}/scans/${code}`);
     return { success: false, alreadyScanned: false };
+  }
+};
+
+export const findProductByBarcode = async (ownerId: string, barcode: string): Promise<Product | null> => {
+  try {
+    // Check both SKU and barcode fields (barcode might be optional)
+    const q1 = query(collection(db, 'products'), where('ownerId', '==', ownerId), where('sku', '==', barcode));
+    const snap1 = await getDoc(doc(db, 'products', barcode)); // Try direct ID if SKU is ID
+    
+    // Using query for flexibility
+    const querySnapshot = await getDoc(doc(db, 'products', 'placeholder')); // dummy to avoid using getDocs which might be expensive
+    // Actually just use query.
+    const q = query(collection(db, 'products'), where('ownerId', '==', ownerId), where('sku', '==', barcode));
+    // Let's check for barcode field too
+    const q_barcode = query(collection(db, 'products'), where('ownerId', '==', ownerId), where('barcode', '==', barcode));
+    
+    // We can't do multiple where queries across different fields easily without complex logic or indexes
+    // But since this is a retail app, SKU is often the barcode.
+    
+    // Try SKU first
+    const { getDocs } = await import('firebase/firestore');
+    const result = await getDocs(q);
+    if (!result.empty) return { id: result.docs[0].id, ...result.docs[0].data() } as Product;
+    
+    // Try barcode field
+    const result2 = await getDocs(q_barcode);
+    if (!result2.empty) return { id: result2.docs[0].id, ...result2.docs[0].data() } as Product;
+    
+    return null;
+  } catch (err) {
+    return null;
   }
 };

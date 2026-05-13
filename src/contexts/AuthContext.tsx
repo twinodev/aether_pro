@@ -27,6 +27,7 @@ interface AuthContextType {
   registerWithEmail: (email: string, pass: string, name: string) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
+  getGlobalIdentity: () => string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -157,6 +158,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const getGlobalIdentity = () => {
+    if (!user) return 'ANONYMOUS';
+    const role = isAdmin ? 'OVERSEER' : isVip ? 'ELITE' : 'OPERATIVE';
+    const id = user.uid.slice(0, 4).toUpperCase();
+    const bizName = profile?.business?.name ? ` @ ${profile.business.name.toUpperCase()}` : '';
+    return `${user.displayName?.toUpperCase() || 'AGENT'}${bizName} [${role}-${id}]`;
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -169,7 +178,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loginWithEmail,
       registerWithEmail,
       sendPasswordReset,
-      logout
+      logout,
+      getGlobalIdentity
     }}>
       {children}
     </AuthContext.Provider>

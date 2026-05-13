@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import Tesseract from 'tesseract.js';
+import AgentCertificate from './AgentCertificate';
 import { 
   Package, 
   Plus, 
+  Award,
   ShoppingCart, 
   MapPin, 
   AlertTriangle, 
@@ -24,8 +27,18 @@ import {
   BarChart as BarChartIcon,
   PieChart as PieChartIcon,
   Download,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Layout,
+  Tag,
+  Type,
+  Grid,
+  Clipboard,
+  FileText as FileTextIcon,
+  Camera,
+  Trash2
 } from 'lucide-react';
+import Barcode from 'react-barcode';
+import { Html5Qrcode } from 'html5-qrcode';
 import { toPng } from 'html-to-image';
 import { 
   BarChart, 
@@ -53,9 +66,11 @@ import {
   Sale,
   createProduct,
   createLocation,
+  updateLocation,
   recordSale,
   updateStockLevel,
   updateProduct,
+  deleteLocation,
   subscribeToMemberships,
   addMembership,
   removeMembership,
@@ -63,14 +78,29 @@ import {
   Membership
 } from '../services/inventoryService';
 
+interface LabelItem {
+  id: string;
+  name: string;
+  price: string;
+  sku: string;
+  currency: string;
+  quantity: number;
+}
+
+const LABEL_TEMPLATES = [
+  { id: 'standard', name: 'Standard Tag', width: '2in', height: '1.2in', icon: Tag },
+  { id: 'shelf', name: 'Shelf Talker', width: '3.5in', height: '2in', icon: Layout },
+  { id: 'small', name: 'Jewelry/Small', width: '1.5in', height: '0.5in', icon: Type },
+];
+
 export default function DukaSyncView() {
-  const { user, profile } = useAuth();
+  const { user, profile, getGlobalIdentity } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [activeLocation, setActiveLocation] = useState<Location | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
-  const [view, setView] = useState<'overview' | 'inventory' | 'sales' | 'pos' | 'settings' | 'reports'>('overview');
+  const [view, setView] = useState<'overview' | 'inventory' | 'sales' | 'pos' | 'settings' | 'reports' | 'labels' | 'certificate'>('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showEditProduct, setShowEditProduct] = useState(false);
@@ -80,7 +110,7 @@ export default function DukaSyncView() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [restockAmount, setRestockAmount] = useState(0);
   const [cart, setCart] = useState<Array<{ product: Product, quantity: number }>>([]);
-  const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'cash' | 'credit'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<'momo' | 'cash' | 'credit'>('cash');
   const [isProcessingSale, setIsProcessingSale] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -107,6 +137,181 @@ export default function DukaSyncView() {
 
   const [currency, setCurrency] = useState(() => localStorage.getItem('dukaCurrency') || 'KES');
 
+  useEffect(() => {
+    localStorage.setItem('dukaCurrency', currency);
+  }, [currency]);
+  const [lastScannedForLabel, setLastScannedForLabel] = useState<Product | null>(null);
+  const [labelItems, setLabelItems] = useState<LabelItem[]>([]);
+  const [activeTemplate, setActiveTemplate] = useState('standard');
+  const [bulkInput, setBulkInput] = useState('');
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [scannerMode, setScannerMode] = useState<'labels' | 'cart'>('labels');
+  const [queueCount, setQueueCount] = useState(0);
+  const [isScannerListening, setIsScannerListening] = useState(true);
+  const [labelSettings, setLabelSettings] = useState({
+    fontSize: 100,
+    spacing: 100,
+    showSKU: true,
+    showPrice: false,
+    showBarcode: true
+  });
+  const scannerRef = React.useRef<Html5Qrcode | null>(null);
+  const labelPrintRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const queue = JSON.parse(localStorage.getItem('labelQueue') || '[]');
+    setQueueCount(queue.length);
+  }, []);
+
+  const importFromQueue = () => {
+    const queue = JSON.parse(localStorage.getItem('labelQueue') || '[]');
+    if (queue.length > 0) {
+      setLabelItems([...labelItems, ...queue]);
+      localStorage.setItem('labelQueue', '[]');
+      setQueueCount(0);
+    }
+  };
+
+  const startLabelScanner = async () => {
+    try {
+      setScannerMode('labels');
+      setShowScanner(true);
+      setTimeout(async () => {
+        const scanner = new Html5Qrcode('duka-pos-scanner');
+        scannerRef.current = scanner;
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decodedText) => {
+            handleScannedLabelCode(decodedText);
+            stopLabelScanner();
+          },
+          () => {}
+        );
+      }, 100);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const startCartScanner = async () => {
+    try {
+      setScannerMode('cart');
+      setShowScanner(true);
+      setTimeout(async () => {
+        const scanner = new Html5Qrcode('duka-pos-scanner');
+        scannerRef.current = scanner;
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decodedText) => {
+            handleScannedCartCode(decodedText);
+            // Don't stop scanner automatically to allow multiple scans
+            // unless the user wants it to close after one. 
+            // Retail scanners often allow rapid fire.
+            // But for phone camera, maybe vibrate/flash on success.
+          },
+          () => {}
+        );
+      }, 100);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const stopLabelScanner = async () => {
+    if (scannerRef.current?.isScanning) {
+      await scannerRef.current.stop();
+      setShowScanner(false);
+    }
+  };
+
+  const handleScannedCartCode = (code: string) => {
+    const product = products.find(p => p.sku === code || p.id === code);
+    if (product) {
+      addToCart(product);
+      // Optional: tactile feedback if available
+      if ('vibrate' in navigator) {
+        navigator.vibrate(100);
+      }
+    }
+  };
+
+  const handleScannedLabelCode = async (code: string) => {
+    const prod = products.find(p => p.sku === code || p.id === code);
+    if (prod) {
+      // Auto-generate SKU as PRODUCT-PRICE for the label
+      const autoSku = `${prod.name.substring(0, 6).toUpperCase()}-${prod.price}`;
+      
+      setLabelItems([...labelItems, { 
+        id: Math.random().toString(36).substr(2, 9), 
+        name: prod.name, 
+        price: prod.price.toString(), 
+        sku: autoSku, 
+        currency: currency || 'KES',
+        quantity: 1
+      }]);
+    } else {
+      alert(`SKU ${code} not found in inventory.`);
+    }
+  };
+
+  const removeLabelItem = (id: string) => {
+    setLabelItems(labelItems.filter(item => item.id !== id));
+  };
+
+  const handleBulkLabelImport = () => {
+    const lines = bulkInput.split('\n').filter(l => l.trim());
+    const newItems: LabelItem[] = [];
+    
+    lines.forEach(line => {
+      const parts = line.split(',').map(s => s.trim());
+      const query = parts[parts.length - 1]; // Assume last part is SKU or just one part is SKU
+      const product = products.find(p => p.sku === query || p.name.toLowerCase() === query.toLowerCase());
+      
+      if (product) {
+        const autoSku = `${product.name.substring(0, 6).toUpperCase()}-${product.price}`;
+        newItems.push({
+          id: Math.random().toString(36).substr(2, 9),
+          name: product.name,
+          price: product.price.toString(),
+          sku: autoSku,
+          currency: currency || 'KES',
+          quantity: 1
+        });
+      }
+    });
+
+    if (newItems.length > 0) {
+      setLabelItems([...labelItems, ...newItems]);
+    } else {
+      alert("No matching products found for the provided SKUs/Names.");
+    }
+    
+    setBulkInput('');
+    setShowBulkModal(false);
+  };
+
+  const handleLabelPrint = () => {
+    window.print();
+  };
+
+  const addToLabelQueue = (product: Product) => {
+    const queue = JSON.parse(localStorage.getItem('labelQueue') || '[]');
+    const newItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: product.name,
+      price: product.price.toString(),
+      sku: product.sku,
+      currency: currency || 'KSh',
+      quantity: 1
+    };
+    localStorage.setItem('labelQueue', JSON.stringify([...queue, newItem]));
+    setLastScannedForLabel(null);
+    alert(`${product.name} added to Label Factory queue!`);
+  };
+
   const [showCartOnMobile, setShowCartOnMobile] = useState(false);
   const [barcodeInput, setBarcodeInput] = useState('');
   const barcodeRef = React.useRef<HTMLInputElement>(null);
@@ -115,6 +320,24 @@ export default function DukaSyncView() {
     if (view === 'pos' && barcodeRef.current) {
       barcodeRef.current.focus();
     }
+  }, [view]);
+
+  useEffect(() => {
+    if (view !== 'pos') return;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Focus the barcode field if a numeric/alphanumeric key is pressed 
+      // and we aren't already typing in an input/textarea
+      const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
+      
+      if (!isInput && /^[a-zA-Z0-9]$/.test(e.key)) {
+        barcodeRef.current?.focus();
+        setIsScannerListening(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [view]);
 
   const handleBarcodeSubmit = async (e?: React.FormEvent) => {
@@ -142,6 +365,8 @@ export default function DukaSyncView() {
     const product = products.find(p => p.sku === input || p.id === input);
     if (product) {
       addToCart(product);
+      setLastScannedForLabel(product);
+      setTimeout(() => setLastScannedForLabel(null), 10000);
     }
   };
   useEffect(() => {
@@ -207,8 +432,10 @@ export default function DukaSyncView() {
   }, [activeLocation]);
 
   useEffect(() => {
-    if (!user || !activeLocation) return;
-    if (activeLocation.ownerId === user.uid) {
+    if (!user) return;
+    
+    // Default to owner when no specific location is selected or if user is owner
+    if (!activeLocation || activeLocation.ownerId === user.uid) {
       setUserRole('owner');
       return;
     }
@@ -219,6 +446,47 @@ export default function DukaSyncView() {
       setUserRole('cashier');
     }
   }, [user, activeLocation, memberships]);
+
+  useEffect(() => {
+    let buffer = '';
+    let lastKeyTime = Date.now();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input/textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      const currentTime = Date.now();
+      
+      // Fast typing (typical of barcode scanners)
+      if (currentTime - lastKeyTime > 50) {
+        buffer = '';
+      }
+      
+      if (e.key === 'Enter') {
+        if (buffer.length >= 4) {
+          console.log('Scanner detection:', buffer);
+          if (view === 'pos') {
+            const product = products.find(p => p.sku === buffer);
+            if (product) addToCart(product);
+          } else if (view === 'inventory') {
+            setSearchQuery(buffer);
+          } else if (view === 'labels') {
+            handleScannedLabelCode(buffer);
+          }
+        }
+        buffer = '';
+      } else if (e.key.length === 1) {
+        buffer += e.key;
+      }
+      
+      lastKeyTime = currentTime;
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [view, products, cart, inventory]);
 
   const handleRestock = async () => {
     if (!activeLocation || !selectedProduct || restockAmount <= 0) return;
@@ -290,6 +558,70 @@ export default function DukaSyncView() {
     }
   };
 
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isOCRLoading, setIsOCRLoading] = useState(false);
+
+  const handleOCRScan = async (file: File) => {
+    setIsOCRLoading(true);
+    try {
+      const { data: { text } } = await Tesseract.recognize(file, 'eng');
+      // Simple parsing: look for lines that look like Price, SKU or Name
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+      
+      // Try to find price-like strings
+      const priceRegex = /(\d{1,}\.?\d{0,2})/;
+      
+      lines.forEach(line => {
+        const words = line.split(' ');
+        if (words.length >= 2) {
+          // If it looks like a product name and price
+          const priceMatch = line.match(priceRegex);
+          if (priceMatch) {
+            const name = line.replace(priceMatch[0], '').trim();
+            const price = priceMatch[0];
+            if (name.length > 2) {
+              const newItem: LabelItem = {
+                id: Math.random().toString(36).substr(2, 9),
+                name,
+                price,
+                sku: 'SCAN-' + Math.random().toString(36).substr(2, 4).toUpperCase(),
+                currency: currency,
+                quantity: 1
+              };
+              setLabelItems(prev => [...prev, newItem]);
+            }
+          }
+        }
+      });
+      alert(`OCR Scan complete. Extracted items from text.`);
+    } catch (error) {
+      console.error("OCR Failed:", error);
+      alert("OCR process failed. Please ensure the image is clear.");
+    } finally {
+      setIsOCRLoading(false);
+    }
+  };
+
+  const handleDeleteLocation = async () => {
+    if (!activeLocation || !user || activeLocation.ownerId !== user.uid) return;
+    if (deleteConfirmText.toUpperCase() !== activeLocation.name.toUpperCase()) {
+      alert("Name mismatch. Please enter the exact Duka name to confirm.");
+      return;
+    }
+    
+    try {
+      await deleteLocation(activeLocation.id);
+      setShowDeleteModal(false);
+      setActiveLocation(null);
+      setView('overview');
+      setDeleteConfirmText('');
+    } catch (error) {
+      console.error("Failed to delete location:", error);
+      alert("Failed to delete the duka. Please try again.");
+    }
+  };
+
   const cartTotal = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0);
 
   const stats = {
@@ -298,7 +630,37 @@ export default function DukaSyncView() {
       return acc + (p.price * (inv?.quantity || 0));
     }, 0),
     lowStock: inventory.filter(i => i.quantity <= i.minStockLevel).length,
-    totalItems: inventory.reduce((acc, i) => acc + i.quantity, 0)
+    totalItems: inventory.reduce((acc, i) => acc + i.quantity, 0),
+    inventoryRisks: inventory.map(item => {
+      const product = products.find(p => p.id === item.productId);
+      if (!product) return null;
+      
+      // Heuristic: Calculate burn rate from last 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const recentSales = sales.filter(s => {
+        const saleDate = s.timestamp?.toDate();
+        return saleDate && saleDate >= sevenDaysAgo && s.items.some(si => si.productId === product.id);
+      });
+      
+      const totalUnitsSold = recentSales.reduce((acc, sale) => {
+        const saleItem = sale.items.find(si => si.productId === product.id);
+        return acc + (saleItem?.quantity || 0);
+      }, 0);
+      
+      const burnRate = totalUnitsSold / 7; // Average units per day
+      const daysRemaining = burnRate > 0 ? Math.floor(item.quantity / burnRate) : Infinity;
+      
+      return {
+        product,
+        quantity: item.quantity,
+        minStock: item.minStockLevel,
+        burnRate,
+        daysRemaining,
+        isCritical: daysRemaining <= 3 || item.quantity <= item.minStockLevel
+      };
+    }).filter((r): r is NonNullable<typeof r> => r !== null && r.isCritical).sort((a, b) => a.daysRemaining - b.daysRemaining)
   };
 
   const exportReceiptAsPng = async () => {
@@ -384,8 +746,10 @@ export default function DukaSyncView() {
     { id: 'pos', label: 'Terminal', icon: Smartphone, roles: ['owner', 'manager', 'cashier'] },
     { id: 'sales', label: 'Ledger', icon: History, roles: ['owner', 'manager', 'cashier'] },
     { id: 'reports', label: 'Intel', icon: BarChartIcon, roles: ['owner', 'manager'] },
+    { id: 'labels', label: 'Labels', icon: Printer, roles: ['owner', 'manager'] },
     { id: 'staff', label: 'Team', icon: Users, roles: ['owner', 'manager'] },
     { id: 'settings', label: 'Profile', icon: Settings, roles: ['owner', 'manager', 'cashier'] },
+    ...(profile?.isVerifiedAgent ? [{ id: 'certificate', label: 'Cert', icon: Award, roles: ['owner', 'manager', 'cashier'] }] : [])
   ].filter(item => item.roles.includes(userRole));
 
   return (
@@ -400,7 +764,11 @@ export default function DukaSyncView() {
               </div>
               <h1 className="text-3xl font-black uppercase tracking-tighter italic text-neutral-900">Duka Sync</h1>
             </div>
-            <p className="text-sm font-bold text-neutral-400 uppercase tracking-widest">Distributed Retail Intelligence</p>
+            <p className="text-sm font-bold text-neutral-400 uppercase tracking-widest flex items-center gap-2">
+              Distributed Retail Intelligence
+              <span className="w-1 h-1 rounded-full bg-neutral-200" />
+              <span className="text-rose-600/60 font-mono tracking-tighter text-[9px]">{getGlobalIdentity()}</span>
+            </p>
           </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -434,82 +802,113 @@ export default function DukaSyncView() {
               </div>
 
               {userRole === 'owner' && (
-                <button 
-                  onClick={() => setShowAddLocation(true)}
-                  className="w-10 h-10 bg-neutral-900 text-white rounded-xl flex items-center justify-center hover:bg-neutral-800 transition-colors shadow-lg shadow-neutral-900/10 shrink-0"
-                  title="Link New Duka"
-                >
-                  <Plus size={18} />
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setShowAddLocation(true)}
+                    className="w-10 h-10 bg-neutral-900 text-white rounded-xl flex items-center justify-center hover:bg-neutral-800 transition-colors shadow-lg shadow-neutral-900/10 shrink-0"
+                    title="Link New Duka"
+                  >
+                    <Plus size={18} />
+                  </button>
+                  {activeLocation && (
+                    <button 
+                      onClick={() => setShowDeleteModal(true)}
+                      className="w-10 h-10 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center hover:bg-rose-100 transition-colors shadow-lg shadow-rose-600/5 shrink-0"
+                      title="Delete Current Duka"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
         </div>
       </div>
 
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteModal && activeLocation && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowDeleteModal(false)}
+              className="absolute inset-0 bg-neutral-900/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white w-full max-w-lg rounded-[2.5rem] p-10 relative z-10 shadow-2xl space-y-8"
+            >
+              <div className="w-20 h-20 bg-rose-50 rounded-[2rem] flex items-center justify-center text-rose-600 mx-auto">
+                <AlertTriangle size={40} />
+              </div>
+              
+              <div className="text-center space-y-2">
+                <h3 className="text-3xl font-black uppercase tracking-tighter">Terminate {activeLocation.name}?</h3>
+                <p className="text-neutral-500 text-sm font-medium leading-relaxed">
+                  This action is irreversible. All linked inventory, sales history, and staff permissions for this specific node will be purged from the Aether mesh.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400 text-center block">Type Duka Name to Confirm</label>
+                  <input 
+                    type="text"
+                    value={deleteConfirmText}
+                    onChange={e => setDeleteConfirmText(e.target.value)}
+                    className="w-full h-16 bg-neutral-50 border-2 border-neutral-100 rounded-2xl text-center text-xl font-black uppercase tracking-widest text-rose-600 focus:ring-4 ring-rose-500/10 focus:border-rose-500 transition-all outline-none"
+                    placeholder={activeLocation.name.toUpperCase()}
+                  />
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <button 
+                    onClick={handleDeleteLocation}
+                    disabled={deleteConfirmText.toUpperCase() !== activeLocation.name.toUpperCase()}
+                    className="flex-1 h-14 bg-rose-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-rose-600/20 disabled:opacity-30 disabled:grayscale transition-all active:scale-95"
+                  >
+                    Confirm Termination
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setShowDeleteModal(false);
+                      setDeleteConfirmText('');
+                    }}
+                    className="px-8 h-14 bg-neutral-100 text-neutral-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-200 transition-colors"
+                  >
+                    Abort
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Main Container */}
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col lg:flex-row gap-8">
+        <div className="flex flex-col gap-8">
           
-          {/* Desktop Sidebar Navigation */}
-          <div className="hidden lg:block w-72 shrink-0 space-y-2 sticky top-8 h-fit">
+          {/* Vertical Navigation on Top */}
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-8 gap-1.5 md:gap-2 mb-4 no-print">
             {NAV_ITEMS.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setView(item.id as any)}
-                className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all ${
+                className={`flex flex-col items-center justify-center p-2.5 sm:p-4 rounded-xl sm:rounded-2xl transition-all border-1.5 sm:border-2 ${
                   view === item.id 
-                  ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/20' 
-                  : 'bg-white text-neutral-500 hover:bg-neutral-100 border border-neutral-100 hover:border-neutral-200'
+                  ? 'bg-rose-600 border-rose-600 text-white shadow-lg shadow-rose-600/20' 
+                  : 'bg-white text-neutral-500 hover:bg-neutral-100 border-neutral-100 hover:border-neutral-200'
                 }`}
               >
-                <div className="flex items-center gap-4">
-                  <item.icon size={20} />
-                  <span className="text-xs font-black uppercase tracking-widest">{item.label}</span>
-                </div>
-                {view === item.id && <ChevronRight size={16} />}
+                <item.icon size={16} className="mb-1.5 sm:mb-2 sm:scale-110" />
+                <span className="text-[7px] sm:text-[10px] font-black uppercase tracking-tight sm:tracking-widest text-center leading-none">{item.label}</span>
               </button>
             ))}
-          </div>
-
-          {/* Mobile Bottom Navigation */}
-          <div className="lg:hidden fixed bottom-6 left-6 right-6 z-50">
-            {/* Quick Add FAB for Mobile - Visible when not in POS to avoid overlap */}
-            {view !== 'pos' && (
-              <motion.button
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                onClick={() => setShowAddLocation(true)}
-                className="absolute -top-20 right-0 w-14 h-14 bg-rose-600 text-white rounded-full shadow-2xl flex items-center justify-center border-4 border-white active:scale-95 transition-transform"
-              >
-                <Plus size={24} />
-              </motion.button>
-            )}
-            <div className="bg-neutral-900/90 backdrop-blur-xl border border-white/10 rounded-3xl p-2 shadow-2xl flex items-center justify-between">
-              {NAV_ITEMS.map((item) => {
-                const isActive = view === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setView(item.id as any)}
-                    className={`flex flex-col items-center justify-center flex-1 py-3 px-1 rounded-2xl transition-all relative ${
-                      isActive ? 'text-white' : 'text-neutral-500'
-                    }`}
-                  >
-                    {isActive && (
-                      <motion.div 
-                        layoutId="activeTab"
-                        className="absolute inset-0 bg-rose-600 rounded-2xl -z-10"
-                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                      />
-                    )}
-                    <item.icon size={18} className={isActive ? 'scale-110 mb-1' : 'mb-1'} />
-                    <span className="text-[8px] font-black uppercase tracking-tighter truncate w-full text-center">
-                      {item.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
           </div>
 
           {/* Main Content Area */}
@@ -552,7 +951,7 @@ export default function DukaSyncView() {
                   </div>
 
                   <div className="bg-white p-6 rounded-3xl shadow-sm border border-neutral-100">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-4">Critial Stock Warnings</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-4">Critical Stock Warnings</p>
                     <div className="flex items-center justify-between">
                       <div className="flex items-baseline gap-2">
                         <span className="text-4xl font-black tracking-tighter text-amber-500">{stats.lowStock}</span>
@@ -576,42 +975,52 @@ export default function DukaSyncView() {
               </div>
             )}
 
-            {view === 'overview' && stats.lowStock > 0 && (
+            {view === 'overview' && stats.inventoryRisks.length > 0 && (
               <div className="bg-white p-8 rounded-3xl shadow-sm border border-neutral-100">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-sm font-black uppercase tracking-widest text-neutral-900 flex items-center gap-2">
-                    <AlertTriangle size={16} className="text-amber-500" />
-                    Restock Suggested
+                    <AlertTriangle size={16} className="text-rose-600" />
+                    Inventory Risk Intelligence
                   </h3>
-                  <button className="text-[10px] font-black uppercase tracking-widest text-rose-600 hover:opacity-75 transition-opacity">Auto-Generate Order</button>
+                  <p className="text-[8px] font-black uppercase tracking-widest text-neutral-400">Based on 7-day velocity</p>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {inventory.filter(i => i.quantity <= i.minStockLevel).map(item => {
-                    const product = products.find(p => p.id === item.productId);
-                    if (!product) return null;
-                    return (
-                      <div key={item.productId} className="flex items-center justify-between p-4 bg-neutral-50 rounded-2xl">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-neutral-400">
-                            <Package size={14} />
-                          </div>
-                          <div>
-                            <p className="text-xs font-black uppercase tracking-tight text-neutral-900">{product.name}</p>
-                            <p className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest">Curr: {item.quantity} / Min: {item.minStockLevel}</p>
-                          </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {stats.inventoryRisks.map(risk => (
+                    <div key={risk.product.id} className="p-5 bg-neutral-50 rounded-[2rem] border border-neutral-100 relative overflow-hidden group">
+                      <div className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[8px] font-black uppercase tracking-widest ${risk.daysRemaining <= 2 ? 'bg-rose-600 text-white' : 'bg-amber-500 text-neutral-900'}`}>
+                        {risk.daysRemaining === Infinity ? 'Low Volume' : `${risk.daysRemaining} Days Left`}
+                      </div>
+                      
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-neutral-400 shadow-sm">
+                          <Package size={18} />
+                        </div>
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-tight text-neutral-900">{risk.product.name}</p>
+                          <p className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest">Curr: {risk.quantity} / Min: {risk.minStock}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1 h-2 bg-neutral-200 rounded-full overflow-hidden">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.min(100, (risk.quantity / Math.max(risk.minStock * 2, 1)) * 100)}%` }}
+                            className={`h-full ${risk.daysRemaining <= 2 ? 'bg-rose-600' : 'bg-amber-500'}`}
+                          />
                         </div>
                         <button 
                           onClick={() => {
-                            setSelectedProduct(product);
+                            setSelectedProduct(risk.product);
                             setShowRestock(true);
                           }}
-                          className="px-3 py-1.5 bg-rose-600 text-white rounded-lg text-[8px] font-black uppercase tracking-widest shadow-lg shadow-rose-600/10"
+                          className="shrink-0 px-4 py-2 bg-neutral-900 text-white rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-black transition-all"
                         >
-                          Order
+                          Restock
                         </button>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -660,42 +1069,46 @@ export default function DukaSyncView() {
                         const isLow = inv && inv.quantity <= inv.minStockLevel;
                         
                         return (
-                          <div key={product.id} className="group p-4 bg-white border border-neutral-100 rounded-2xl hover:border-rose-200 hover:shadow-lg transition-all flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 bg-neutral-50 rounded-xl flex items-center justify-center text-neutral-400 group-hover:bg-rose-50 group-hover:text-rose-600 transition-colors">
+                          <div key={product.id} className="group p-4 bg-white border border-neutral-100 rounded-3xl hover:border-rose-200 hover:shadow-xl transition-all flex flex-col sm:flex-row gap-4 sm:items-center">
+                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                              <div className="w-12 h-12 bg-neutral-50 rounded-2xl flex items-center justify-center text-neutral-400 group-hover:bg-rose-50 group-hover:text-rose-600 transition-colors shrink-0 shadow-sm">
                                 <Package size={20} />
                               </div>
-                              <div>
-                                <h3 className="text-sm font-black uppercase tracking-tight text-neutral-900">{product.name}</h3>
-                                <div className="flex items-center gap-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
-                                  <span>SKU: {product.sku}</span>
-                                  <span>•</span>
-                                  <span>{product.category}</span>
+                              <div className="min-w-0 flex-1">
+                                <h3 className="text-xs sm:text-sm font-black uppercase tracking-tight text-neutral-900 truncate">{product.name}</h3>
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[8px] sm:text-[9px] font-bold text-neutral-400 uppercase tracking-widest">
+                                  <span className="truncate max-w-[100px]">SKU: {product.sku}</span>
+                                  <span className="hidden xs:inline text-neutral-200">•</span>
+                                  <span className="truncate">{product.category}</span>
                                 </div>
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-8">
-                              <div className="text-right">
-                                <p className="text-[8px] font-black uppercase tracking-widest text-neutral-400 mb-1">Local Stock</p>
-                                <p className={`text-xl font-black tracking-tighter ${isLow ? 'text-amber-500' : 'text-neutral-900'}`}>
-                                  {inv?.quantity || 0} <span className="text-[10px] text-neutral-400 uppercase tracking-tight font-black">{product.unit}</span>
-                                </p>
+                            <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-8 border-t sm:border-0 pt-3 sm:pt-0 border-neutral-50">
+                              <div className="text-left sm:text-right">
+                                <p className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-neutral-400 mb-0.5 leading-none">Local Stock</p>
+                                <div className="flex items-baseline justify-start sm:justify-end gap-1">
+                                  <span className={`text-lg sm:text-xl font-black tracking-tighter ${isLow ? 'text-amber-500' : 'text-neutral-900'}`}>
+                                    {inv?.quantity || 0}
+                                  </span>
+                                  <span className="text-[7px] sm:text-[8px] text-neutral-400 uppercase tracking-tight font-black">{product.unit}</span>
+                                </div>
                               </div>
                               <div className="text-right">
-                                <p className="text-[8px] font-black uppercase tracking-widest text-neutral-400 mb-1">Price/Unit</p>
-                                <p className="text-sm font-black tracking-tight text-neutral-900">
-                                  {currency} {product.price.toLocaleString()}
+                                <p className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-neutral-400 mb-0.5 leading-none">Price/Unit</p>
+                                <p className="text-xs sm:text-sm font-black tracking-tight text-neutral-900 whitespace-nowrap">
+                                  <span className="text-[8px] sm:text-[9px] text-rose-600 mr-0.5">{currency}</span>
+                                  {product.price.toLocaleString()}
                                 </p>
                               </div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1 sm:ml-2">
                                 {userRole !== 'cashier' && (
                                   <button 
                                     onClick={() => {
                                       setEditingProduct(product);
                                       setShowEditProduct(true);
                                     }}
-                                    className="p-3 text-neutral-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                                    className="w-10 h-10 flex items-center justify-center text-neutral-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
                                     title="Edit Product"
                                   >
                                     <Edit3 size={18} />
@@ -707,7 +1120,7 @@ export default function DukaSyncView() {
                                       setSelectedProduct(product);
                                       setShowRestock(true);
                                     }}
-                                    className="p-3 text-neutral-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                                    className="w-10 h-10 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-900 rounded-xl transition-all"
                                     title="Add Stock"
                                   >
                                     <Plus size={18} />
@@ -774,56 +1187,107 @@ export default function DukaSyncView() {
                         )}
                       </AnimatePresence>
 
-                      <div className="flex gap-2 mb-6">
-                        <div className="relative flex-1">
-                          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300" />
-                          <input 
-                            type="text"
-                            placeholder="Search products..."
-                            className="w-full h-12 pl-11 pr-4 bg-white border border-neutral-100 rounded-xl text-sm font-medium focus:ring-2 ring-rose-600 outline-none"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                          />
+                      <div className="flex flex-col gap-3 mb-6">
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300" />
+                            <input 
+                              type="text"
+                              placeholder="Search products..."
+                              className="w-full h-12 pl-11 pr-4 bg-white border border-neutral-100 rounded-xl text-sm font-medium focus:ring-2 ring-rose-600 outline-none"
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                          </div>
+
+                          <form onSubmit={handleBarcodeSubmit} className="relative w-32 sm:w-48 group">
+                            <QrCode size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isScannerListening ? 'text-rose-600 animate-pulse' : 'text-neutral-300'}`} />
+                            <input 
+                              ref={barcodeRef}
+                              type="text"
+                              placeholder={isScannerListening ? "Ready to Scan..." : "Scan..."}
+                              className="w-full h-12 pl-11 pr-4 bg-rose-50 border border-rose-100 rounded-xl text-sm font-black uppercase tracking-widest focus:ring-2 ring-rose-600 outline-none text-rose-900 placeholder:text-rose-300 transition-all group-hover:border-rose-300"
+                              value={barcodeInput}
+                              onFocus={() => setIsScannerListening(true)}
+                              onChange={(e) => {
+                                setBarcodeInput(e.target.value);
+                                
+                                if (ticketMode) return; 
+
+                                const prod = products.find(p => p.sku === e.target.value);
+                                if (prod) {
+                                  addToCart(prod);
+                                  setBarcodeInput('');
+                                }
+                              }}
+                            />
+                            <div className="absolute -top-6 left-0 right-0 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="text-[7px] font-black bg-rose-600 text-white px-2 py-0.5 rounded-full uppercase tracking-tighter">Hardware Scanner Support Active</span>
+                            </div>
+                          </form>
                         </div>
 
-                        <button 
-                          onClick={() => setTicketMode(!ticketMode)}
-                          className={`px-4 h-12 rounded-xl text-[8px] font-black uppercase tracking-widest border-2 transition-all flex items-center gap-2 shrink-0 ${ticketMode ? 'bg-rose-600 border-rose-600 text-white shadow-lg shadow-rose-600/20' : 'bg-white border-neutral-100 text-neutral-400'}`}
-                        >
-                          <Smartphone size={14} />
-                          Ticket Mode
-                        </button>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => setTicketMode(!ticketMode)}
+                            className={`flex-1 h-12 rounded-xl text-[8px] font-black uppercase tracking-widest border-2 transition-all flex items-center justify-center gap-2 ${ticketMode ? 'bg-rose-600 border-rose-600 text-white shadow-lg shadow-rose-600/20' : 'bg-white border-neutral-100 text-neutral-400'}`}
+                          >
+                            <Smartphone size={14} />
+                            Ticket Mode
+                          </button>
 
-                        <form onSubmit={handleBarcodeSubmit} className="relative w-32 md:w-48">
-                          <QrCode size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-rose-600" />
-                          <input 
-                            ref={barcodeRef}
-                            type="text"
-                            placeholder="Scan..."
-                            className="w-full h-12 pl-11 pr-4 bg-rose-50 border border-rose-100 rounded-xl text-sm font-black uppercase tracking-widest focus:ring-2 ring-rose-600 outline-none text-rose-900 placeholder:text-rose-300"
-                            value={barcodeInput}
-                            onChange={(e) => {
-                              setBarcodeInput(e.target.value);
-                              
-                              if (ticketMode) return; // Don't auto-add in ticket mode
-
-                              // Auto-submit if product exists (for fast scanners)
-                              const prod = products.find(p => p.sku === e.target.value);
-                              if (prod) {
-                                addToCart(prod);
-                                setBarcodeInput('');
-                              }
-                            }}
-                          />
-                        </form>
+                          <button 
+                            onClick={startCartScanner}
+                            className="flex-1 h-12 rounded-xl bg-neutral-900 text-white text-[8px] font-black uppercase tracking-widest border-2 border-neutral-900 transition-all flex items-center justify-center gap-2 hover:bg-black"
+                          >
+                            <Camera size={14} />
+                            Live Scan
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 gap-3 pr-2 pb-20 lg:pb-0">
+                      <AnimatePresence>
+                        {lastScannedForLabel && (
+                          <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            className="mb-4 p-4 bg-emerald-600 text-white rounded-2xl flex items-center justify-between shadow-xl shadow-emerald-900/20"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-white/20 rounded-lg">
+                                <Printer size={18} />
+                              </div>
+                              <div>
+                                <p className="text-[8px] font-black uppercase tracking-widest opacity-80">Sync Integration</p>
+                                <p className="text-xs font-black italic">{lastScannedForLabel.name}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button 
+                                onClick={() => addToLabelQueue(lastScannedForLabel)}
+                                className="px-4 py-2 bg-white text-emerald-700 rounded-lg text-[8px] font-black uppercase tracking-widest hover:bg-emerald-50 transition-all font-sans"
+                              >
+                                Send to Label Factory
+                              </button>
+                              <button 
+                                onClick={() => setLastScannedForLabel(null)}
+                                className="p-2 hover:bg-emerald-700 rounded-lg transition-colors"
+                              >
+                                <Plus size={14} className="rotate-45" />
+                              </button>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      <div className="flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pr-2 pb-24 lg:pb-0">
                         {products.filter(p => 
                           p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           p.sku.toLowerCase().includes(searchQuery.toLowerCase())
                         ).map((product) => {
                           const inv = inventory.find(i => i.productId === product.id);
+                          const isLow = inv && inv.quantity <= inv.minStockLevel && inv.quantity > 0;
                           const currentInCart = cart.find(c => c.product.id === product.id)?.quantity || 0;
                           const available = (inv?.quantity || 0) - currentInCart;
 
@@ -832,21 +1296,32 @@ export default function DukaSyncView() {
                               key={product.id}
                               onClick={() => addToCart(product)}
                               disabled={available <= 0}
-                              className={`text-left p-4 rounded-2xl border transition-all ${
+                              className={`text-left p-3 sm:p-4 rounded-3xl border transition-all relative overflow-hidden flex items-center sm:block gap-3 ${
                                 available <= 0 
                                 ? 'bg-neutral-50 border-neutral-100 opacity-50 grayscale' 
                                 : 'bg-white border-neutral-100 hover:border-rose-300 hover:shadow-md'
                               }`}
                             >
-                              <div className="w-10 h-10 bg-neutral-50 rounded-lg flex items-center justify-center text-neutral-400 mb-3">
-                                <Package size={18} />
+                              {isLow && (
+                                <div className="absolute top-0 right-0 px-2 py-1 bg-amber-500 text-[6px] font-black uppercase text-white rounded-bl-xl shadow-sm z-10">
+                                  Low Stock
+                                </div>
+                              )}
+                              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-neutral-50 rounded-xl flex items-center justify-center text-neutral-400 sm:mb-3 shrink-0">
+                                <Package size={18} sm:size={20} />
                               </div>
-                              <p className="text-xs font-black uppercase tracking-tight text-neutral-900 line-clamp-1">{product.name}</p>
-                              <p className="text-[10px] font-black text-rose-600 mt-1">{currency} {product.price.toLocaleString()}</p>
-                              <p className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest mt-2 text-rose-500/60 font-black">
-                                In Cart: {currentInCart}
-                              </p>
-                              <p className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest mt-1">Stock: {inv?.quantity || 0}</p>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[10px] sm:text-xs font-black uppercase tracking-tight text-neutral-900 line-clamp-1">{product.name}</p>
+                                <div className="flex items-center justify-between mt-1">
+                                  <p className="text-[9px] sm:text-[10px] font-black text-rose-600">{currency} {product.price.toLocaleString()}</p>
+                                  <div className="flex flex-col items-end">
+                                    <p className="text-[7px] font-bold text-neutral-400 uppercase tracking-widest text-rose-500/80 font-black">
+                                       In Cart: {currentInCart}
+                                    </p>
+                                    <p className="text-[7px] font-bold text-neutral-400 uppercase tracking-widest">Stock: {inv?.quantity || 0}</p>
+                                  </div>
+                                </div>
+                              </div>
                             </button>
                           );
                         })}
@@ -908,7 +1383,7 @@ export default function DukaSyncView() {
                         </div>
 
                         <div className="grid grid-cols-3 gap-2">
-                          {(['cash', 'mpesa', 'credit'] as const).map(method => (
+                          {(['cash', 'momo', 'credit'] as const).map(method => (
                             <button
                               key={method}
                               onClick={() => setPaymentMethod(method)}
@@ -918,7 +1393,7 @@ export default function DukaSyncView() {
                                 : 'bg-white text-neutral-400 border-neutral-100 hover:border-neutral-200'
                               }`}
                             >
-                              {method}
+                              {method === 'momo' ? 'MOBILE MONEY' : method}
                             </button>
                           ))}
                         </div>
@@ -955,11 +1430,11 @@ export default function DukaSyncView() {
                           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                             <div className="flex items-center gap-4">
                               <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-                                sale.paymentMethod === 'mpesa' ? 'bg-emerald-50 text-emerald-600' :
+                                sale.paymentMethod === 'momo' ? 'bg-emerald-50 text-emerald-600' :
                                 sale.paymentMethod === 'cash' ? 'bg-amber-50 text-amber-600' :
                                 'bg-rose-50 text-rose-600'
                               }`}>
-                                {sale.paymentMethod === 'mpesa' ? <Smartphone size={20} /> :
+                                {sale.paymentMethod === 'momo' ? <Smartphone size={20} /> :
                                  sale.paymentMethod === 'cash' ? <TrendingUp size={20} /> :
                                  <Plus size={20} />}
                               </div>
@@ -967,11 +1442,11 @@ export default function DukaSyncView() {
                                 <div className="flex items-center gap-2">
                                   <h3 className="text-sm font-black uppercase tracking-tight text-neutral-900 italic">#{sale.id.slice(-6).toUpperCase()}</h3>
                                   <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest ${
-                                    sale.paymentMethod === 'mpesa' ? 'bg-emerald-100 text-emerald-700' :
+                                    sale.paymentMethod === 'momo' ? 'bg-emerald-100 text-emerald-700' :
                                     sale.paymentMethod === 'cash' ? 'bg-amber-100 text-amber-700' :
                                     'bg-rose-100 text-rose-700'
                                   }`}>
-                                    {sale.paymentMethod}
+                                    {sale.paymentMethod === 'momo' ? 'MOBILE MONEY' : sale.paymentMethod}
                                   </span>
                                 </div>
                                 <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mt-1">
@@ -1031,6 +1506,12 @@ export default function DukaSyncView() {
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {view === 'certificate' && profile && (
+                  <div className="p-8">
+                    <AgentCertificate profile={profile} />
                   </div>
                 )}
 
@@ -1215,6 +1696,375 @@ export default function DukaSyncView() {
                   </div>
                 )}
 
+                {view === 'labels' && (
+                  <div className="p-8">
+                    <header className="mb-8 font-sans print:hidden">
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-2">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-neutral-900 text-white rounded-lg">
+                            <Printer size={24} />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-bold tracking-tight">Label Factory</h2>
+                            <p className="text-neutral-500 text-sm">Bulk print professional retail tags & shelf labels.</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {queueCount > 0 && (
+                            <button 
+                              onClick={importFromQueue}
+                              className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 transition-all shadow-sm animate-pulse"
+                            >
+                              <Check size={14} />
+                              Import Queue ({queueCount})
+                            </button>
+                          )}
+                          <button 
+                            onClick={startLabelScanner}
+                            className="flex items-center gap-2 px-4 py-2 bg-white border border-neutral-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-50 transition-all"
+                          >
+                            <Camera size={14} />
+                            Scan
+                          </button>
+                          <button 
+                            onClick={() => {
+                              const input = document.createElement('input');
+                              input.type = 'file';
+                              input.accept = 'image/*';
+                              input.onchange = (e) => {
+                                const file = (e.target as HTMLInputElement).files?.[0];
+                                if (file) handleOCRScan(file);
+                              };
+                              input.click();
+                            }}
+                            disabled={isOCRLoading}
+                            className="flex items-center gap-2 px-4 py-2 bg-white border border-neutral-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-50 transition-all disabled:opacity-50"
+                          >
+                            <ImageIcon size={14} />
+                            {isOCRLoading ? 'Processing...' : 'OCR Scan'}
+                          </button>
+                          <button 
+                            onClick={() => setShowBulkModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-white border border-neutral-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-50 transition-all"
+                          >
+                            <Clipboard size={14} />
+                            Bulk Import
+                          </button>
+                          <button 
+                            onClick={handleLabelPrint}
+                            className="flex items-center gap-2 px-6 py-2 bg-neutral-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-xl shadow-neutral-900/10"
+                          >
+                            <Printer size={14} />
+                            Print Labels
+                          </button>
+                        </div>
+                      </div>
+                    </header>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                      {/* Editor Side */}
+                      <div className="lg:col-span-5 space-y-6 print:hidden">
+                        <div className="bg-white rounded-3xl border border-neutral-100 p-6 shadow-sm">
+                          <h2 className="text-xs font-black uppercase tracking-widest text-neutral-400 mb-4 flex items-center gap-2">
+                            <Type size={12} />
+                            Dimensions & Style
+                          </h2>
+                          <div className="grid grid-cols-3 gap-3">
+                            {LABEL_TEMPLATES.map(t => (
+                              <button
+                                key={t.id}
+                                onClick={() => setActiveTemplate(t.id)}
+                                className={`p-3 rounded-2xl border-2 transition-all text-center group ${activeTemplate === t.id ? 'border-neutral-900 bg-neutral-900 text-white shadow-lg' : 'border-neutral-50 bg-neutral-50/50 text-neutral-400 hover:border-neutral-200'}`}
+                              >
+                                <t.icon size={18} className="mx-auto mb-2" />
+                                <p className="text-[8px] font-black uppercase tracking-tighter">{t.name}</p>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="bg-white rounded-3xl border border-neutral-100 p-6 shadow-sm">
+                          <h2 className="text-xs font-black uppercase tracking-widest text-neutral-400 mb-4 flex items-center gap-2">
+                            <Settings size={12} />
+                            Visual Customization
+                          </h2>
+                          
+                          <div className="space-y-4">
+                            {/* Font Size */}
+                            <div>
+                              <div className="flex justify-between items-center mb-1.5">
+                                <label className="text-[9px] font-black uppercase tracking-widest text-neutral-500">Global Font Size</label>
+                                <span className="text-[9px] font-black text-rose-600">{labelSettings.fontSize}%</span>
+                              </div>
+                              <input 
+                                type="range" 
+                                min="60" 
+                                max="160" 
+                                value={labelSettings.fontSize}
+                                onChange={(e) => setLabelSettings(prev => ({ ...prev, fontSize: parseInt(e.target.value) }))}
+                                className="w-full h-1 bg-neutral-100 rounded-lg appearance-none cursor-pointer accent-neutral-900 h-1.5"
+                              />
+                            </div>
+
+                            {/* Spacing */}
+                            <div>
+                              <div className="flex justify-between items-center mb-1.5">
+                                <label className="text-[9px] font-black uppercase tracking-widest text-neutral-500">Tag Padding</label>
+                                <span className="text-[9px] font-black text-rose-600">{labelSettings.spacing}%</span>
+                              </div>
+                              <input 
+                                type="range" 
+                                min="40" 
+                                max="180" 
+                                value={labelSettings.spacing}
+                                onChange={(e) => setLabelSettings(prev => ({ ...prev, spacing: parseInt(e.target.value) }))}
+                                className="w-full h-1 bg-neutral-100 rounded-lg appearance-none cursor-pointer accent-neutral-900 h-1.5"
+                              />
+                            </div>
+
+                            {/* Toggles */}
+                            <div className="grid grid-cols-2 gap-2">
+                              <button 
+                                onClick={() => setLabelSettings(prev => ({ ...prev, showSKU: !prev.showSKU }))}
+                                className={`flex items-center justify-between p-2.5 rounded-xl border-1.5 transition-all text-[9px] font-black uppercase tracking-widest ${labelSettings.showSKU ? 'bg-neutral-900 border-neutral-900 text-white' : 'bg-neutral-50 border-neutral-100 text-neutral-400'}`}
+                              >
+                                <span>Tag SKU</span>
+                                {labelSettings.showSKU ? <Check size={12} /> : <Plus size={12} />}
+                              </button>
+                              <button 
+                                onClick={() => setLabelSettings(prev => ({ ...prev, showPrice: !prev.showPrice }))}
+                                className={`flex items-center justify-between p-2.5 rounded-xl border-1.5 transition-all text-[9px] font-black uppercase tracking-widest ${labelSettings.showPrice ? 'bg-neutral-900 border-neutral-900 text-white' : 'bg-neutral-50 border-neutral-100 text-neutral-400'}`}
+                              >
+                                <span>Tag Price</span>
+                                {labelSettings.showPrice ? <Check size={12} /> : <Plus size={12} />}
+                              </button>
+                              <button 
+                                onClick={() => setLabelSettings(prev => ({ ...prev, showBarcode: !prev.showBarcode }))}
+                                className={`flex items-center justify-between p-2.5 rounded-xl border-1.5 transition-all text-[9px] font-black uppercase tracking-widest col-span-2 ${labelSettings.showBarcode ? 'bg-neutral-900 border-neutral-900 text-white' : 'bg-neutral-50 border-neutral-100 text-neutral-400'}`}
+                              >
+                                <span>Display Scannable Barcode</span>
+                                {labelSettings.showBarcode ? <Check size={12} /> : <Plus size={12} />}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="bg-white rounded-3xl border border-neutral-100 p-6 shadow-sm">
+                          <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xs font-black uppercase tracking-widest text-neutral-400 flex items-center gap-2">
+                              <Search size={12} />
+                              Search Inventory
+                            </h2>
+                          </div>
+                          
+                          <div className="relative mb-6">
+                            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300" />
+                            <input 
+                              type="text" 
+                              placeholder="Type name or scan SKU..."
+                              className="w-full h-12 flex items-center gap-3 px-11 bg-neutral-50 rounded-2xl border border-neutral-100 text-xs font-black focus:ring-2 ring-rose-600 outline-none"
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                            {searchQuery && (
+                              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-100 rounded-2xl shadow-xl z-[100] max-h-60 overflow-y-auto custom-scrollbar">
+                                {products
+                                  .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.sku.toLowerCase().includes(searchQuery.toLowerCase()))
+                                  .slice(0, 5)
+                                  .map(product => (
+                                    <button
+                                      key={product.id}
+                                      onClick={() => {
+                                        handleScannedLabelCode(product.sku);
+                                        setSearchQuery('');
+                                      }}
+                                      className="w-full text-left p-4 hover:bg-neutral-50 flex items-center justify-between border-b border-neutral-50 last:border-0"
+                                    >
+                                      <div>
+                                        <p className="text-xs font-black uppercase">{product.name}</p>
+                                        <p className="text-[8px] font-bold text-neutral-400">{product.sku}</p>
+                                      </div>
+                                      <Plus size={14} className="text-rose-600" />
+                                    </button>
+                                  ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xs font-black uppercase tracking-widest text-neutral-400 flex items-center gap-2">
+                              <Grid size={12} />
+                              Tag Content ({labelItems.reduce((acc, i) => acc + i.quantity, 0)} labels)
+                            </h2>
+                          </div>
+
+                          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                            <AnimatePresence initial={false}>
+                              {labelItems.map((item) => (
+                                <motion.div 
+                                  key={item.id}
+                                  initial={{ opacity: 0, x: -10 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  exit={{ opacity: 0, x: 10 }}
+                                  className="p-4 rounded-2xl bg-neutral-50/50 border border-neutral-100 flex items-center justify-between group"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-rose-600 shadow-sm border border-neutral-100">
+                                      <Tag size={14} />
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] font-black uppercase tracking-tight text-neutral-900 truncate max-w-[120px]">{item.name}</p>
+                                      <p className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest">{item.currency} {item.price} • {item.sku}</p>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-4">
+                                    <div className="flex items-center bg-white rounded-lg p-1 border border-neutral-100 shadow-sm">
+                                      <button 
+                                        onClick={() => {
+                                          setLabelItems(prev => prev.map(p => p.id === item.id ? { ...p, quantity: Math.max(1, p.quantity - 1) } : p));
+                                        }}
+                                        className="w-5 h-5 flex items-center justify-center text-neutral-400 hover:text-rose-600 font-bold"
+                                      >
+                                        -
+                                      </button>
+                                      <input 
+                                        type="number"
+                                        className="w-8 text-center text-[9px] font-black bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        value={item.quantity}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value) || 1;
+                                          setLabelItems(prev => prev.map(p => p.id === item.id ? { ...p, quantity: Math.max(1, val) } : p));
+                                        }}
+                                      />
+                                      <button 
+                                        onClick={() => {
+                                          setLabelItems(prev => prev.map(p => p.id === item.id ? { ...p, quantity: p.quantity + 1 } : p));
+                                        }}
+                                        className="w-5 h-5 flex items-center justify-center text-neutral-400 hover:text-rose-600 font-bold"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                    <button 
+                                      onClick={() => removeLabelItem(item.id)}
+                                      className="p-2 text-neutral-300 hover:text-rose-500 transition-colors"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </motion.div>
+                              ))}
+                            </AnimatePresence>
+                            {labelItems.length === 0 && (
+                              <div className="text-center py-10">
+                                <p className="text-[8px] font-black uppercase tracking-widest text-neutral-300">No items selected to print</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Preview Side */}
+                      <div className="lg:col-span-7 bg-white rounded-3xl border border-neutral-100 p-8 shadow-sm flex flex-col items-center print:border-none print:shadow-none print:p-0">
+                        <div className="mb-6 flex items-center justify-between w-full print:hidden">
+                          <h2 className="text-xs font-black uppercase tracking-widest text-neutral-400">Digital Proof</h2>
+                          <div className="flex gap-2 text-[10px] font-bold text-neutral-400">
+                            <span>Ready for A4 Print</span>
+                          </div>
+                        </div>
+
+                        <div 
+                          ref={labelPrintRef}
+                          className="w-full grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4 print:grid-cols-3 print:gap-[0.1in] print:block"
+                        >
+                          {labelItems.flatMap(item => Array(item.quantity).fill(item)).map((item, idx) => (
+                            <div 
+                              key={`${item.id}-${idx}`}
+                              style={{ 
+                                padding: `${(activeTemplate === 'standard' ? 1.25 : activeTemplate === 'shelf' ? 2 : 0.6) * (labelSettings.spacing / 100)}rem`,
+                              }}
+                              className={`bg-white border-2 border-neutral-900 text-neutral-900 flex flex-col shadow-sm relative overflow-hidden transition-all print:shadow-none print:border print:mb-2 print:break-inside-avoid ${
+                                activeTemplate === 'standard' ? 'w-[2in] h-[1.2in] m-2' :
+                                activeTemplate === 'shelf' ? 'w-[3.5in] h-[2in]' :
+                                'w-[1.2in] h-[0.8in] items-center justify-center'
+                              }`}
+                            >
+                              <div style={{ fontSize: `${(labelSettings.fontSize / 100) * 100}%` }} className="flex flex-col h-full w-full">
+                                {activeTemplate !== 'small' ? (
+                                  <>
+                                    <h3 className="font-black uppercase leading-tight tracking-tighter mb-2 border-b-2 border-neutral-900 pb-1" style={{ fontSize: '12px' }}>
+                                      {item.name || 'Product Title'}
+                                    </h3>
+                                    <div className="flex-1 flex flex-col justify-between">
+                                      <div className="flex items-center justify-between gap-2">
+                                        {labelSettings.showPrice && (
+                                          <div className="flex flex-col">
+                                            <span className="text-[7px] font-black uppercase text-neutral-400 leading-none mb-0.5">Price</span>
+                                            <span className="text-sm font-black leading-none whitespace-nowrap">
+                                              <span className="text-[10px]">{item.currency}</span> {item.price}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {labelSettings.showSKU && (
+                                          <div className="text-right flex-1 min-w-0">
+                                            <span className="text-[7px] font-black uppercase text-neutral-400 leading-none mb-0.5">SKU</span>
+                                            <p className="text-[9px] font-bold truncate leading-none">{item.sku}</p>
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {labelSettings.showBarcode && item.sku && (
+                                        <div className="flex justify-center mt-auto pb-1">
+                                          <div className="scale-[1.1] origin-bottom">
+                                            <Barcode 
+                                              value={item.sku} 
+                                              height={activeTemplate === 'shelf' ? 45 : 30} 
+                                              width={activeTemplate === 'shelf' ? 1.8 : 1.4} 
+                                              displayValue={false}
+                                              margin={0} 
+                                              background="transparent"
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center h-full text-center space-y-1">
+                                    <p className="text-[8px] font-black uppercase truncate w-full leading-none">{item.name}</p>
+                                    
+                                    {labelSettings.showPrice && (
+                                      <p className="text-[9px] font-black leading-none">{item.currency} {item.price}</p>
+                                    )}
+
+                                    {labelSettings.showBarcode && item.sku && (
+                                      <div className="scale-[0.8] origin-center py-0.5">
+                                        <Barcode 
+                                          value={item.sku} 
+                                          height={18} 
+                                          width={1} 
+                                          displayValue={false}
+                                          margin={0} 
+                                          background="transparent"
+                                        />
+                                      </div>
+                                    )}
+                                    
+                                    {labelSettings.showSKU && (
+                                      <p className="text-[6px] font-bold text-neutral-400 truncate w-full">{item.sku}</p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {view === 'settings' && (
                   <div className="p-10">
                     <div className="max-w-2xl">
@@ -1277,17 +2127,72 @@ export default function DukaSyncView() {
 
                         <button 
                           onClick={async () => {
-                            if (!user || userRole !== 'owner') return;
+                            if (!user) return;
                             await updateBusinessProfile(user.uid, businessSettings);
                             setCurrency(businessSettings.currency);
-                            alert('Business profile synchronized successfully!');
+                            alert('Universal business identity synchronized!');
                           }}
-                          disabled={userRole !== 'owner'}
-                          className={`w-full h-16 bg-neutral-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl flex items-center justify-center gap-3 group mt-4 ${userRole !== 'owner' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          className={`w-full h-16 bg-neutral-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-xl flex items-center justify-center gap-3 group mt-4 transition-all hover:bg-black`}
                         >
                           <Check size={16} className="text-rose-600" />
                           Update Global Identity
                         </button>
+
+                        {activeLocation && userRole === 'owner' && (
+                          <div className="mt-12 pt-12 border-t border-neutral-100">
+                             <div className="flex items-center gap-4 mb-8">
+                              <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center">
+                                <Store size={24} />
+                              </div>
+                              <div>
+                                <h2 className="text-2xl font-black uppercase tracking-tighter italic">Active Duka Setup</h2>
+                                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mt-1">Configure Specific Branch Details</p>
+                              </div>
+                            </div>
+
+                            <div className="space-y-6">
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Shop Physical Name</label>
+                                <input 
+                                  className="w-full h-14 px-6 bg-neutral-50 rounded-2xl text-sm font-black focus:ring-2 ring-rose-600 outline-none transition-all"
+                                  value={activeLocation.name}
+                                  onChange={e => setActiveLocation({...activeLocation, name: e.target.value})}
+                                />
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                 <div className="space-y-2">
+                                  <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Physical Location</label>
+                                  <input 
+                                    className="w-full h-14 px-6 bg-neutral-50 rounded-2xl text-sm font-black focus:ring-2 ring-rose-600 outline-none transition-all"
+                                    value={activeLocation.address}
+                                    onChange={e => setActiveLocation({...activeLocation, address: e.target.value})}
+                                  />
+                                </div>
+                                 <div className="space-y-2">
+                                  <label className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Local Contact</label>
+                                  <input 
+                                    className="w-full h-14 px-6 bg-neutral-50 rounded-2xl text-sm font-black focus:ring-2 ring-rose-600 outline-none transition-all"
+                                    value={activeLocation.phone}
+                                    onChange={e => setActiveLocation({...activeLocation, phone: e.target.value})}
+                                  />
+                                </div>
+                              </div>
+
+                              <button 
+                                onClick={async () => {
+                                  if (!activeLocation) return;
+                                  const { id, ...updates } = activeLocation;
+                                  await updateLocation(id, updates);
+                                  alert('Local branch synchronized successfully!');
+                                }}
+                                className="w-full h-16 bg-white border-2 border-neutral-100 text-neutral-900 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-sm flex items-center justify-center gap-3 group mt-4 transition-all hover:border-neutral-200"
+                              >
+                                <Check size={16} className="text-rose-600" />
+                                Update Branch Info
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
                         <div className="mt-12 p-6 bg-neutral-50 rounded-2xl border border-neutral-100">
                           <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-2">Technical Identity</p>
@@ -1977,6 +2882,126 @@ export default function DukaSyncView() {
           </div>
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {showBulkModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowBulkModal(false)}
+              className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-white w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl p-8"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-bold italic tracking-tighter">Bulk Label Entry</h3>
+                  <p className="text-neutral-500 text-[10px] font-black uppercase tracking-widest">Format: Name, Price, SKU</p>
+                </div>
+                <button 
+                  onClick={() => setShowBulkModal(false)}
+                  className="p-2 hover:bg-neutral-50 rounded-full transition-colors"
+                >
+                  <Plus size={20} className="rotate-45" />
+                </button>
+              </div>
+
+              <textarea 
+                value={bulkInput}
+                onChange={(e) => setBulkInput(e.target.value)}
+                placeholder="Product One, 500, SKU123&#10;Product Two, 1200, SKU456"
+                className="w-full h-48 bg-neutral-50 border border-neutral-100 rounded-2xl p-4 text-xs font-black focus:ring-2 ring-rose-600 outline-none mb-6 resize-none"
+              />
+
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setShowBulkModal(false)}
+                  className="flex-1 py-3 text-[10px] font-black uppercase tracking-widest text-neutral-500 rounded-xl hover:bg-neutral-50 transition-all border border-neutral-100"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleBulkLabelImport}
+                  className="flex-1 py-3 text-[10px] font-black uppercase tracking-widest bg-neutral-900 text-white rounded-xl hover:bg-black transition-all shadow-lg"
+                >
+                  Import Data
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showScanner && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-neutral-900/40 backdrop-blur-sm"
+              onClick={stopLabelScanner}
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative bg-neutral-900 w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl p-8 text-white"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold italic tracking-tighter">
+                  {scannerMode === 'cart' ? 'POS Quick Scan' : 'Live Tag Scanners'}
+                </h3>
+                <button 
+                  onClick={stopLabelScanner}
+                  className="p-2 hover:bg-neutral-800 rounded-full transition-colors"
+                >
+                  <Plus size={20} className="rotate-45" />
+                </button>
+              </div>
+              
+              <div id="duka-pos-scanner" className="w-full aspect-square bg-black rounded-2xl overflow-hidden mb-6" />
+              
+              <div className="text-center space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 animate-pulse">
+                  Align Barcode / QR with center frame
+                </p>
+                {scannerMode === 'cart' && (
+                  <p className="text-[8px] font-bold text-neutral-600">Items are automatically added to cart</p>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          body * { visibility: hidden; }
+          #app-container, .print\\:hidden, .no-print { display: none !important; }
+          .print-area, .print-area * { visibility: visible; }
+          div[id="receipt-print-zone"], div[id="receipt-print-zone"] * { visibility: visible; }
+          div[id="report-print-zone"], div[id="report-print-zone"] * { visibility: visible; }
+          /* Logic for printing labels */
+          div[ref] { display: block !important; position: absolute; left: 0; top: 0; width: 100%; }
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #e5e5e5;
+          border-radius: 10px;
+        }
+      `}} />
     </div>
   );
 }

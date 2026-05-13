@@ -18,12 +18,26 @@ export interface UserProfile {
   photoURL: string;
   isVip: boolean;
   isAdmin: boolean;
+  isVerifiedAgent?: boolean;
+  agentVerificationDate?: string;
   business?: BusinessInfo;
   trialActivatedAt?: string;
   vipExpiry?: string;
   billingCycle?: 'monthly' | 'annually' | 'lifetime' | 'none';
   createdAt: string;
 }
+
+export const verifyAgent = async (uid: string, status: boolean) => {
+  const userRef = doc(db, 'users', uid);
+  try {
+    await updateDoc(userRef, {
+      isVerifiedAgent: status,
+      agentVerificationDate: status ? new Date().toISOString() : null
+    });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
+  }
+};
 
 export const updateBusinessProfile = async (uid: string, business: BusinessInfo) => {
   const userRef = doc(db, 'users', uid);

@@ -11,6 +11,8 @@
         "photoURL": { "type": "string" },
         "isVip": { "type": "boolean" },
         "isAdmin": { "type": "boolean" },
+        "isVerifiedAgent": { "type": "boolean" },
+        "agentVerificationDate": { "type": "string", "format": "date-time" },
         "business": {
           "type": "object",
           "properties": {
@@ -131,7 +133,7 @@
           }
         },
         "total": { "type": "number" },
-        "paymentMethod": { "type": "string", "enum": ["mpesa", "cash", "credit"] },
+        "paymentMethod": { "type": "string", "enum": ["momo", "cash", "credit"] },
         "locationId": { "type": "string" },
         "userId": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" }
