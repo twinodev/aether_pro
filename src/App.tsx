@@ -16,16 +16,18 @@ import MoMoIntelligence from './components/tools/MoMoIntelligence.tsx';
 import DukaSyncView from './components/DukaSyncView.tsx';
 import AdminDashboard from './components/AdminDashboard.tsx';
 import SettingsView from './components/SettingsView.tsx';
+import EventRegistration from './components/tools/EventRegistration.tsx';
 
 import { useAuth } from './contexts/AuthContext.tsx';
 import LoginOverlay from './components/ui/LoginOverlay.tsx';
 import VipGate from './components/ui/VipGate.tsx';
 import BroadcastBanner from './components/ui/BroadcastBanner.tsx';
+import PwaHandler from './components/PwaHandler.tsx';
 import { User as UserIcon, Smartphone } from 'lucide-react';
 
 const PREMIUM_VIEWS: string[] = ['ticketing', 'luku-predictor', 'receipt-lab', 'momo-intelligence', 'duka-sync'];
 
-type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'ticketing' | 'ocr-tool' | 'luku-predictor' | 'receipt-lab' | 'momo-intelligence' | 'settings' | 'admin' | 'duka-sync';
+type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'ticketing' | 'ocr-tool' | 'luku-predictor' | 'receipt-lab' | 'momo-intelligence' | 'settings' | 'admin' | 'duka-sync' | 'event-register';
 
 const navItems: { id: View; label: string; icon: any; adminOnly?: boolean }[] = [
   { id: 'home', label: 'Home', icon: LayoutGrid },
@@ -47,6 +49,10 @@ const navItems: { id: View; label: string; icon: any; adminOnly?: boolean }[] = 
 const getInitialView = (): View => {
   if (typeof window === 'undefined') return 'home';
   const hash = window.location.hash.replace(/^#\/?/, '');
+  const baseView = hash.split('?')[0];
+  if (baseView === 'event-register' || baseView === 'register') {
+    return 'event-register';
+  }
   if (hash && navItems.some(item => item.id === hash)) {
     return hash as View;
   }
@@ -72,7 +78,10 @@ export default function App() {
 
     const handleHashChange = () => {
       const hash = window.location.hash.replace(/^#\/?/, '');
-      if (hash && navItems.some(item => item.id === hash)) {
+      const baseView = hash.split('?')[0];
+      if (baseView === 'event-register' || baseView === 'register') {
+        setCurrentView('event-register');
+      } else if (hash && navItems.some(item => item.id === hash)) {
         setCurrentView(hash as View);
       } else if (!hash || hash === '') {
         setCurrentView('home');
@@ -133,8 +142,8 @@ export default function App() {
   }
 
   const renderView = () => {
-    // If user is not logged in and is not on home or explicitly showing login, show login overlay
-    if (!user && (currentView !== 'home' || showLogin)) {
+    // If user is not logged in and is not on home or event-register or explicitly showing login, show login overlay
+    if (!user && (currentView !== 'home' && currentView !== 'event-register' || showLogin)) {
       return <LoginOverlay onClose={() => setShowLogin(false)} />;
     }
 
@@ -184,6 +193,8 @@ export default function App() {
               return <ReceiptLab />;
             case 'ticketing':
               return <TicketingTool />;
+            case 'event-register':
+              return <EventRegistration />;
             case 'ocr-tool':
               return <OcrTool />;
             case 'settings':
@@ -583,6 +594,7 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+      <PwaHandler />
     </div>
   );
 }

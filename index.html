@@ -49,16 +49,8 @@
     <meta name="apple-mobile-web-app-title" content="Aether Pro" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="manifest" href="/manifest.json" />
 
     <script>
-      // Register service worker
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed: ', err));
-        });
-      }
-
       // Fix for "Cannot set property fetch of #<Window> which has only a getter"
       // This happens when polyfills try to overwrite the read-only window.fetch
       (function() {

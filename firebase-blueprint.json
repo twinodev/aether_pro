@@ -162,6 +162,65 @@
         "scannedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["code", "locationId", "scannedAt"]
+    },
+    "event": {
+      "title": "Published Event",
+      "description": "An event created by a duka owner for selling tickets",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "eventTitle": { "type": "string" },
+        "venue": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "ticketType": { "type": "string" },
+        "price": { "type": "string" },
+        "design": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "eventTitle", "venue", "date", "price"]
+    },
+    "ticket": {
+      "title": "Customer Ticket",
+      "description": "A single scannable admission tick",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "eventId": { "type": "string" },
+        "eventTitle": { "type": "string" },
+        "venue": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "ticketType": { "type": "string" },
+        "price": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "scanned": { "type": "boolean" },
+        "scannedAt": { "type": "string", "format": "date-time" },
+        "design": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "eventTitle", "venue", "date", "customerName", "scanned"]
+    },
+    "ticketTemplate": {
+      "title": "Ticket Style Template",
+      "description": "A customized ticket styling designed by an operator",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "eventTitle": { "type": "string" },
+        "venue": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "ticketType": { "type": "string" },
+        "price": { "type": "string" },
+        "design": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "name"]
     }
   },
   "firestore": {
@@ -204,6 +263,18 @@
     "/broadcasts/{broadcastId}": {
       "schema": "broadcast",
       "description": "System-wide broadcasts and notifications"
+    },
+    "/events/{eventId}": {
+      "schema": "event",
+      "description": "Published events that can be accessed publicly by attendees to register"
+    },
+    "/tickets/{ticketId}": {
+      "schema": "ticket",
+      "description": "Individual tickets created for attendees"
+    },
+    "/ticketTemplates/{templateId}": {
+      "schema": "ticketTemplate",
+      "description": "Saved templates for quick style configuration by the user"
     }
   }
 }

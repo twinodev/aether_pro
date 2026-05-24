@@ -8,10 +8,10 @@ service cloud.firestore {
 
     // Global Helpers
     function isSignedIn() { return request.auth != null; }
-    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
-    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid && request.auth.token.email_verified == true; }
+    function isVerified() { return isSignedIn(); }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
     function isAdmin() { 
-      return isSignedIn() && request.auth.token.email_verified == true && (
+      return isSignedIn() && (
         request.auth.token.email == 'tjuniemma@gmail.com'
       ); 
     }
@@ -200,6 +200,38 @@ service cloud.firestore {
         allow read: if isVerified() && (isLocationOwner(locationId) || hasMembership(locationId) || isAdmin());
         allow create: if isVerified() && (isLocationOwner(locationId) || hasMembership(locationId)) && isValidSale(incoming());
       }
+    }
+
+    // Ticketing Engine Collections
+    match /ticketTemplates/{templateId} {
+      function isValidTemplate(data) {
+        return data.id is string && data.userId is string && data.name is string;
+      }
+      allow read: if isVerified() && resource.data.userId == request.auth.uid;
+      allow create: if isVerified() && incoming().userId == request.auth.uid && isValidTemplate(incoming());
+      allow update: if isVerified() && resource.data.userId == request.auth.uid && incoming().userId == request.auth.uid && isValidTemplate(incoming());
+      allow delete: if isVerified() && resource.data.userId == request.auth.uid;
+    }
+
+    match /events/{eventId} {
+      function isValidEvent(data) {
+        return data.id is string && data.userId is string && data.eventTitle is string && data.venue is string && data.date is string && data.price is string;
+      }
+      allow get: if true;
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isVerified() && incoming().userId == request.auth.uid && isValidEvent(incoming());
+      allow update: if isVerified() && resource.data.userId == request.auth.uid && incoming().userId == request.auth.uid && isValidEvent(incoming());
+      allow delete: if isVerified() && resource.data.userId == request.auth.uid;
+    }
+
+    match /tickets/{ticketId} {
+      function isValidTicket(data) {
+        return data.id is string && data.eventTitle is string && data.venue is string && data.date is string && data.customerName is string && data.scanned is bool;
+      }
+      allow get: if true;
+      allow list: if isSignedIn() && (resource.data.organizerId == request.auth.uid || isAdmin());
+      allow create: if isValidTicket(incoming()) && incoming().scanned == false;
+      allow update: if (isSignedIn() && (resource.data.organizerId == request.auth.uid || isAdmin())) || (incoming().diff(existing()).affectedKeys().hasOnly(['scanned', 'scannedAt']));
     }
   }
 }
