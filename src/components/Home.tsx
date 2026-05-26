@@ -102,12 +102,22 @@ export default function Home({ onSelectTool }: { onSelectTool: (id: string) => v
     {
       id: 'duka-sync',
       title: 'Duka Sync',
-      description: 'Distributed inventory & shop management. Essential for Aether Pro users.',
+      description: 'Distributed inventory, shop & POS manager. Real-time stock counts and financial reports.',
       icon: <Store size={24} />,
       color: 'bg-rose-600',
       featured: true,
       category: 'ops',
       vip: true
+    },
+    {
+      id: 'ticketing',
+      title: 'Events & Tickets',
+      description: 'Browse local events, issue entry passes, buy access tokens, and view live registration notification feeds.',
+      icon: <Tickets size={24} />,
+      color: 'bg-indigo-600',
+      featured: true,
+      category: 'ops',
+      vip: false
     },
     {
       id: 'momo-intelligence',
@@ -145,15 +155,6 @@ export default function Home({ onSelectTool }: { onSelectTool: (id: string) => v
       icon: <FileText size={24} />,
       color: 'bg-amber-600',
       category: 'ops'
-    },
-    {
-      id: 'ticketing',
-      title: 'Pass Terminal',
-      description: 'Deploy secure digital tokens.',
-      icon: <Tickets size={24} />,
-      color: 'bg-rose-500',
-      category: 'ops',
-      vip: true
     },
     {
       id: 'qr-builder',
@@ -256,8 +257,18 @@ export default function Home({ onSelectTool }: { onSelectTool: (id: string) => v
           </div>
 
           <p className="mt-8 max-w-xl text-neutral-400 dark:text-neutral-500 text-lg md:text-xl font-medium leading-relaxed">
-            Speed. Privacy. Precision. Essential toolkit for professionals.
+            The professional toolsuite, featuring <strong className="text-neutral-900 dark:text-white">Duka Sync</strong> for distributed inventory and shop POS, alongside <strong className="text-neutral-900 dark:text-white">Events Ticketing</strong> with live registration alerts.
           </p>
+
+          <div className="mt-6 flex flex-wrap gap-4">
+            <button
+              onClick={() => onSelectTool('ticketing')}
+              className="px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-indigo-600 hover:bg-neutral-900 text-white shadow-lg shadow-indigo-600/20 active:scale-95 transition-all flex items-center gap-3 group"
+            >
+              <Tickets size={16} className="text-white group-hover:rotate-12 transition-transform" />
+              <span>Browse Public Events & Tickets</span>
+            </button>
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -323,7 +334,7 @@ export default function Home({ onSelectTool }: { onSelectTool: (id: string) => v
       >
         {filteredTools.map((tool) => (
           <div key={tool.id} className={`
-             ${activeCategory === 'all' && (tool.id === 'duka-sync' || tool.id === 'momo-intelligence') ? 'lg:col-span-2 lg:row-span-1' : ''}
+             ${activeCategory === 'all' && (tool.id === 'duka-sync' || tool.id === 'ticketing') ? 'lg:col-span-2 lg:row-span-1' : ''}
              ${activeCategory === 'all' && tool.id === 'phone-sorter' ? 'lg:col-span-2 lg:row-span-2' : ''}
              relative
           `}>

@@ -25,7 +25,7 @@ import BroadcastBanner from './components/ui/BroadcastBanner.tsx';
 import PwaHandler from './components/PwaHandler.tsx';
 import { User as UserIcon, Smartphone } from 'lucide-react';
 
-const PREMIUM_VIEWS: string[] = ['ticketing', 'luku-predictor', 'receipt-lab', 'momo-intelligence', 'duka-sync'];
+const PREMIUM_VIEWS: string[] = ['luku-predictor', 'receipt-lab', 'momo-intelligence', 'duka-sync'];
 
 type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'ticketing' | 'ocr-tool' | 'luku-predictor' | 'receipt-lab' | 'momo-intelligence' | 'settings' | 'admin' | 'duka-sync' | 'event-register';
 
@@ -37,7 +37,7 @@ const navItems: { id: View; label: string; icon: any; adminOnly?: boolean }[] = 
   { id: 'luku-predictor', label: 'Energy', icon: Zap },
   { id: 'admin', label: 'Admin', icon: Shield, adminOnly: true },
   { id: 'ocr-tool', label: 'OCR', icon: FileText },
-  { id: 'ticketing', label: 'Tickets', icon: Tickets },
+  { id: 'ticketing', label: 'Events', icon: Tickets },
   { id: 'qr-builder', label: 'QR', icon: QrCode },
   { id: 'barcode-builder', label: 'Barcode', icon: Barcode },
   { id: 'scanner', label: 'Scanner', icon: Camera },

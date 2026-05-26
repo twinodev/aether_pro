@@ -41,8 +41,61 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           cleanupOutdatedCaches: true,
-          globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024 // 5MB
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
+          runtimeCaching: [
+            {
+              // Custom cache-first strategy for static resources (JS, CSS, images, fonts)
+              urlPattern: ({ request }) => 
+                request.destination === 'script' || 
+                request.destination === 'style' || 
+                request.destination === 'image' || 
+                request.destination === 'font',
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'duka-sync-static-assets-cache',
+                expiration: {
+                  maxEntries: 120,
+                  maxAgeSeconds: 30 * 24 * 60 * 60, // 30 Days
+                },
+                cacheableResponse: {
+                  statuses: [0, 200]
+                }
+              }
+            },
+            {
+              // Cache-first strategy for public home pages and metadata configurations
+              urlPattern: ({ url }) => 
+                url.pathname === '/' || 
+                url.pathname === '/index.html' || 
+                url.pathname.endsWith('.json'),
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'duka-sync-app-shell-cache',
+                cacheableResponse: {
+                  statuses: [0, 200]
+                }
+              }
+            },
+            {
+              // Network-First strategy with background sync queue helper for backend API transactions
+              urlPattern: ({ url }) => url.pathname.includes('/api/'),
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'duka-sync-api-endpoints-cache',
+                networkTimeoutSeconds: 8,
+                backgroundSync: {
+                  name: 'sync-inventory-queue',
+                  options: {
+                    maxRetentionTime: 24 * 60 // Keep retrying for 24 hours
+                  }
+                },
+                cacheableResponse: {
+                  statuses: [0, 200]
+                }
+              }
+            }
+          ]
         }
       })
     ],

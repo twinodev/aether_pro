@@ -2,13 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  getEvent, createTicket, Ticket, Event, TicketDesign 
+  getEvent, createTicket, Ticket, Event, TicketDesign, getTicket 
 } from '../../services/ticketService';
 import { emailService } from '../../services/emailService';
 import { 
   Calendar, MapPin, User, Mail, CreditCard, Smartphone, 
   Check, ArrowLeft, Sparkles, AlertCircle, Download, FileImage, 
-  Printer, Coins, RefreshCw, Send, CheckCircle2, Ticket as TicketIcon 
+  Printer, Coins, RefreshCw, Send, CheckCircle2, Ticket as TicketIcon, Lock, Unlock, Copy 
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { toPng } from 'html-to-image';
@@ -24,12 +24,11 @@ export default function EventRegistration() {
   
   // Checkout flow state
   const [paymentStep, setPaymentStep] = useState<'details' | 'payment' | 'processing' | 'success'>('details');
-  const [paymentMethod, setPaymentMethod] = useState<'momo' | 'airtel' | 'card'>('momo');
+  const [paymentMethod, setPaymentMethod] = useState<'momo' | 'airtel'>('momo');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [cardName, setCardName] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
+  const [paymentTxId, setPaymentTxId] = useState('');
+  const [copiedNumber, setCopiedNumber] = useState(false);
+  const [refreshingStatus, setRefreshingStatus] = useState(false);
   
   // Custom Processing Status Feed for Payment Animation
   const [processingStatus, setProcessingStatus] = useState('Securing tunnel...');
@@ -81,6 +80,7 @@ export default function EventRegistration() {
     
     // Create random 9-digit Ticket ID
     const ticketId = 'TKT-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+    const isFree = !eventData.price || eventData.price === '0' || eventData.price.toLowerCase() === 'free';
     
     const ticketRecord: Ticket = {
       id: ticketId,
@@ -94,16 +94,43 @@ export default function EventRegistration() {
       price: eventData.price,
       customerName: fullName.toUpperCase(),
       customerEmail: emailAddress,
+      customerPhone: phoneNumber,
       scanned: false,
       design: eventData.design,
-      createdAt: null
+      createdAt: null,
+      organizerPhone: eventData.organizerPhone,
+      paymentConfirmed: isFree,
+      paymentTxId: isFree ? "" : paymentTxId.trim().toUpperCase(),
+      paymentMethod: isFree ? undefined : paymentMethod
     };
 
     try {
       await createTicket(ticketRecord);
       setGeneratedTicket(ticketRecord);
+      if (isFree) {
+        // Automatically dispatch confirmation email since it is free and instantly confirmed
+        await emailTicketToCustomer(ticketRecord);
+      }
     } catch (err) {
       console.error('Error recording ticket registration:', err);
+    }
+  };
+
+  const handleCheckStatus = async () => {
+    if (!generatedTicket) return;
+    setRefreshingStatus(true);
+    try {
+      const liveTicket = await getTicket(generatedTicket.id);
+      if (liveTicket) {
+        setGeneratedTicket(liveTicket);
+        if (liveTicket.paymentConfirmed) {
+          setEmailSuccess('Your payment has been verified! Access pass unlocked.');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to reload status', err);
+    } finally {
+      setRefreshingStatus(false);
     }
   };
 
@@ -126,13 +153,16 @@ export default function EventRegistration() {
   };
 
   const handleTriggerPayment = () => {
+    if (!phoneNumber || !paymentTxId.trim()) {
+      alert("Please fill in your payment phone number and Transaction ID.");
+      return;
+    }
     setPaymentStep('processing');
     
     const stages = [
-      { msg: 'Securing transaction tunnel...', delay: 1200 },
-      { msg: `Requesting authorization prompt on +256 ${phoneNumber || 'device'}...`, delay: 2500 },
-      { msg: 'Awaiting operator secret PIN validation...', delay: 4200 },
-      { msg: 'Transaction Authorized. Confirming seats...', delay: 1500 }
+      { msg: 'Receiving transaction claims...', delay: 1000 },
+      { msg: 'Validating Transaction ID format...', delay: 1200 },
+      { msg: 'Preparing pending gate pass documentation...', delay: 1000 }
     ];
 
     let currentDelay = 0;
@@ -143,7 +173,7 @@ export default function EventRegistration() {
           setTimeout(async () => {
             await handleCreateTicketRecord();
             setPaymentStep('success');
-          }, 1200);
+          }, 1000);
         }
       }, currentDelay);
       currentDelay += stage.delay;
@@ -205,44 +235,45 @@ export default function EventRegistration() {
       });
   };
 
-  const emailTicketToCustomer = async () => {
-    if (!generatedTicket) return;
+  const emailTicketToCustomer = async (ticketToUse?: Ticket) => {
+    const ticket = ticketToUse || generatedTicket;
+    if (!ticket) return;
     setEmailSending(true);
     setEmailSuccess(null);
 
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #f0f0f0; border-radius: 16px; background-color: #ffffff;">
         <div style="text-align: center; margin-bottom: 25px;">
-          <div style="display: inline-block; padding: 10px 20px; background-color: ${generatedTicket.design.color}; color: #ffffff; border-radius: 8px; font-weight: bold; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em;">
-            CONFIRMED PASS TO ${generatedTicket.eventTitle.toUpperCase()}
+          <div style="display: inline-block; padding: 10px 20px; background-color: ${ticket.design.color}; color: #ffffff; border-radius: 8px; font-weight: bold; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em;">
+            CONFIRMED PASS TO ${ticket.eventTitle.toUpperCase()}
           </div>
         </div>
         
-        <p style="font-size: 15px; color: #333333; line-height: 1.6;">Hello <strong>${generatedTicket.customerName}</strong>,</p>
-        <p style="font-size: 14px; color: #666666; line-height: 1.6;">Your ticket for <strong>${generatedTicket.eventTitle}</strong> is secured and ready for scanning at Namboole logistics check-in.</p>
+        <p style="font-size: 15px; color: #333333; line-height: 1.6;">Hello <strong>${ticket.customerName}</strong>,</p>
+        <p style="font-size: 14px; color: #666666; line-height: 1.6;">Your ticket for <strong>${ticket.eventTitle}</strong> is secured and ready for scanning at Namboole logistics check-in.</p>
         
         <div style="margin: 25px 0; padding: 20px; background-color: #fcfcfc; border: 1px solid #ebebeb; border-radius: 12px;">
           <h2 style="font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.15em; color: #a3a3a3; margin-top: 0; margin-bottom: 12px;">Ticket Logistics</h2>
           <table style="width: 100%; border-collapse: collapse;">
             <tr>
               <td style="padding: 6px 0; font-size: 12px; color: #737373; width: 40%;">Ticket Reference ID</td>
-              <td style="padding: 6px 0; font-size: 13px; font-weight: bold; color: #171717;">${generatedTicket.id}</td>
+              <td style="padding: 6px 0; font-size: 13px; font-weight: bold; color: #171717;">${ticket.id}</td>
             </tr>
             <tr>
               <td style="padding: 6px 0; font-size: 12px; color: #737373;">Venue Location</td>
-              <td style="padding: 6px 0; font-size: 13px; font-weight: bold; color: #171717;">${generatedTicket.venue}</td>
+              <td style="padding: 6px 0; font-size: 13px; font-weight: bold; color: #171717;">${ticket.venue}</td>
             </tr>
             <tr>
               <td style="padding: 6px 0; font-size: 12px; color: #737373;">Operational Timing</td>
-              <td style="padding: 6px 0; font-size: 13px; font-weight: bold; color: #171717;">${generatedTicket.date} @ ${generatedTicket.time}</td>
+              <td style="padding: 6px 0; font-size: 13px; font-weight: bold; color: #171717;">${ticket.date} @ ${ticket.time}</td>
             </tr>
             <tr>
               <td style="padding: 6px 0; font-size: 12px; color: #737373;">Admission Tier</td>
-              <td style="padding: 6px 0; font-size: 13px; font-weight: bold; color: #171717; text-transform: uppercase;">${generatedTicket.ticketType}</td>
+              <td style="padding: 6px 0; font-size: 13px; font-weight: bold; color: #171717; text-transform: uppercase;">${ticket.ticketType}</td>
             </tr>
             <tr>
               <td style="padding: 6px 0; font-size: 12px; color: #737373;">Investment Claimed</td>
-              <td style="padding: 6px 0; font-size: 13px; font-weight: bold; color: #171717;">UGX ${generatedTicket.price}</td>
+              <td style="padding: 6px 0; font-size: 13px; font-weight: bold; color: #171717;">UGX ${ticket.price}</td>
             </tr>
           </table>
         </div>
@@ -259,10 +290,10 @@ export default function EventRegistration() {
     try {
       await emailService.sendEmail({
         to: emailAddress,
-        subject: `Your confirmed ticket for ${generatedTicket.eventTitle}`,
+        subject: `Your confirmed ticket for ${ticket.eventTitle}`,
         html: emailHtml
       });
-      setEmailSuccess('Ticket delivery initiated! Please check your email inbox.');
+      setEmailSuccess('Ticket delivery completed automatically! Please check your email inbox.');
     } catch (err: any) {
       console.error('Email registration alert failure', err);
       // Fallback response inside sandbox preview environment
@@ -421,14 +452,14 @@ export default function EventRegistration() {
                   </button>
 
                   <div className="space-y-4">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">Select Telecom / Card Method</h3>
-                    <div className="grid grid-cols-3 gap-2">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">Select Telecom Operator</h3>
+                    <div className="grid grid-cols-2 gap-2">
                       <button 
                         onClick={() => setPaymentMethod('momo')}
                         className={`h-16 rounded-xl border flex flex-col items-center justify-center transition-all px-2 text-center
                           ${paymentMethod === 'momo' ? 'border-amber-400 bg-amber-500/5 text-amber-600 font-bold' : 'border-neutral-100 font-medium text-neutral-400'}`}
                       >
-                        <Smartphone size={16} className="mb-1" />
+                        <Smartphone size={16} className="mb-1 text-amber-500" />
                         <span className="text-[9px] uppercase tracking-widest font-black leading-none">MTN MoMo</span>
                       </button>
                       <button 
@@ -436,83 +467,76 @@ export default function EventRegistration() {
                         className={`h-16 rounded-xl border flex flex-col items-center justify-center transition-all px-2 text-center
                           ${paymentMethod === 'airtel' ? 'border-rose-500 bg-rose-500/5 text-rose-500 font-bold' : 'border-neutral-100 font-medium text-neutral-400'}`}
                       >
-                        <Smartphone size={16} className="mb-1" />
+                        <Smartphone size={16} className="mb-1 text-rose-500" />
                         <span className="text-[9px] uppercase tracking-widest font-black leading-none">Airtel</span>
-                      </button>
-                      <button 
-                        onClick={() => setPaymentMethod('card')}
-                        className={`h-16 rounded-xl border flex flex-col items-center justify-center transition-all px-2 text-center
-                          ${paymentMethod === 'card' ? 'border-neutral-900 bg-neutral-900/5 text-neutral-900 font-bold' : 'border-neutral-100 font-medium text-neutral-400'}`}
-                      >
-                        <CreditCard size={16} className="mb-1" />
-                        <span className="text-[9px] uppercase tracking-widest font-black leading-none">Visa / MC</span>
                       </button>
                     </div>
                   </div>
 
-                  {paymentMethod === 'card' ? (
-                    <div className="space-y-3">
-                      <div className="space-y-1">
-                        <label className="text-[8px] font-black text-neutral-400 uppercase">Cardholder Name</label>
-                        <input 
-                          type="text" 
-                          placeholder="EX: JOEL MUKASA"
-                          value={cardName}
-                          onChange={e => setCardName(e.target.value)}
-                          className="w-full bg-neutral-50 border-neutral-100 rounded-xl h-11 px-4 text-xs font-bold"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[8px] font-black text-neutral-400 uppercase">Credit Card Number</label>
-                        <input 
-                          type="text" 
-                          placeholder="4000 1234 5678 9010"
-                          value={cardNumber}
-                          onChange={e => setCardNumber(e.target.value)}
-                          className="w-full bg-neutral-50 border-neutral-100 rounded-xl h-11 px-4 text-xs font-bold"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-black text-neutral-400 uppercase">Expiry (MM/YY)</label>
-                          <input 
-                            type="text" 
-                            placeholder="12/28"
-                            value={cardExpiry}
-                            onChange={e => setCardExpiry(e.target.value)}
-                            className="w-full bg-neutral-50 border-neutral-100 rounded-xl h-11 px-4 text-xs font-bold"
-                          />
+                  {/* Transfer Details Banner */}
+                  <div className="bg-neutral-50 rounded-2xl p-4 border border-neutral-100 space-y-3">
+                    <div className="flex items-center justify-between border-b border-neutral-100 pb-2">
+                      <span className="text-[8px] font-black uppercase tracking-widest text-neutral-400">MoMo Transfer Desk</span>
+                      <span className="text-xs font-black text-indigo-600">UGX {eventData.price}</span>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[9px] text-neutral-500 leading-relaxed font-semibold">
+                        Please send your transfer of <strong className="text-neutral-900">UGX {eventData.price}</strong> directly to the organizer's phone number:
+                      </p>
+                      <div className="bg-white rounded-xl p-3 border border-neutral-50 flex items-center justify-between">
+                        <div>
+                          <span className="text-[7.5px] font-black text-neutral-400 uppercase tracking-wider block">Recipient Mobile Money</span>
+                          <span className="font-mono text-sm font-black text-neutral-800 tracking-tight">
+                            {eventData.organizerPhone || '0772 000 000'}
+                          </span>
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[8px] font-black text-neutral-400 uppercase">CVV</label>
-                          <input 
-                            type="text" 
-                            placeholder="011"
-                            value={cardCvv}
-                            onChange={e => setCardCvv(e.target.value)}
-                            className="w-full bg-neutral-50 border-neutral-100 rounded-xl h-11 px-4 text-xs font-bold"
-                          />
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(eventData.organizerPhone || '0772000000');
+                            setCopiedNumber(true);
+                            setTimeout(() => setCopiedNumber(false), 2000);
+                          }}
+                          className={`h-8 px-3 rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center gap-1 transition-all ${copiedNumber ? 'bg-emerald-500 text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
+                        >
+                          {copiedNumber ? <Check size={10} /> : <Copy size={10} />}
+                          <span>{copiedNumber ? 'Copied' : 'Copy'}</span>
+                        </button>
                       </div>
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <label className="text-[8px] font-black text-neutral-400 uppercase">Mobile Money Wallet Number</label>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[8px] font-black text-neutral-400 uppercase">Your Sending Phone Number</label>
                       <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400">+256</span>
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold font-mono text-neutral-400">+256</span>
                         <input 
                           type="tel" 
+                          required
                           placeholder="772 000 000"
                           value={phoneNumber}
                           onChange={e => setPhoneNumber(e.target.value)}
-                          className="w-full bg-neutral-50 border-neutral-100 rounded-xl h-12 pl-16 pr-4 text-xs font-bold"
+                          className="w-full bg-neutral-50 border-neutral-150 rounded-xl h-12 pl-16 pr-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
                         />
                       </div>
-                      <p className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest flex items-center gap-1">
-                        <Check size={10} className="text-emerald-500" /> A push-PIN prompt will trigger instantly for security authorization.
-                      </p>
                     </div>
-                  )}
+
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[8px] font-black text-neutral-400 uppercase">Mobile Money Transaction ID</label>
+                        <span className="text-[7px] text-indigo-500 font-bold uppercase">e.g. PP2605...</span>
+                      </div>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="Enter the transaction reference from SMS"
+                        value={paymentTxId}
+                        onChange={e => setPaymentTxId(e.target.value)}
+                        className="w-full bg-neutral-50 border-neutral-150 rounded-xl h-12 px-4 text-xs font-mono font-bold uppercase focus:ring-2 ring-indigo-500/20 transition-all"
+                      />
+                    </div>
+                  </div>
 
                   <button 
                     onClick={handleTriggerPayment}
@@ -560,44 +584,90 @@ export default function EventRegistration() {
                   className="space-y-6"
                 >
                   <div className="text-center py-6 border-b border-neutral-50 space-y-3">
-                    <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto shadow-inner">
-                      <CheckCircle2 size={36} />
-                    </div>
+                    {generatedTicket.paymentConfirmed ? (
+                      <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                        <CheckCircle2 size={36} />
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                        <Lock size={32} className="animate-pulse" />
+                      </div>
+                    )}
                     <div>
-                      <h3 className="text-2xl font-black uppercase tracking-tighter text-neutral-900">Admission Confirmed</h3>
-                      <p className="text-neutral-400 text-xs font-bold uppercase tracking-widest">Digital access token signed and registered successfully!</p>
+                      {generatedTicket.paymentConfirmed ? (
+                        <>
+                          <h3 className="text-2xl font-black uppercase tracking-tighter text-neutral-900">Admission Confirmed</h3>
+                          <p className="text-neutral-400 text-xs font-bold uppercase tracking-widest">Digital access token signed and registered successfully!</p>
+                        </>
+                      ) : (
+                        <>
+                          <h3 className="text-21 font-black uppercase tracking-tighter text-neutral-900 text-amber-600">Verification Pending</h3>
+                          <p className="text-neutral-400 text-[10px] font-black uppercase tracking-wider leading-relaxed max-w-sm mx-auto">
+                            Your payment with TxID <strong className="text-neutral-800 font-mono font-black">{generatedTicket.paymentTxId}</strong> is waiting for confirmation on the organizer's desk. Once they approve, your ticket will unlock and be dispatched via email.
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
 
+                  {!generatedTicket.paymentConfirmed && (
+                    <div className="space-y-2">
+                      <button 
+                        onClick={handleCheckStatus}
+                        className="w-full h-14 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-lg flex items-center justify-center gap-2"
+                        disabled={refreshingStatus}
+                      >
+                        <RefreshCw size={14} className={refreshingStatus ? 'animate-spin' : ''} />
+                        <span>{refreshingStatus ? 'Querying local payment gateway...' : 'Check Approval Status'}</span>
+                      </button>
+                      <p className="text-center text-[8px] font-bold text-neutral-400 uppercase tracking-widest">
+                        Verify your balance or refresh when the organizer confirms your transfer!
+                      </p>
+                    </div>
+                  )}
+
                   <div className="space-y-3">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-neutral-400">Actions & Dispatches</h4>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-neutral-400">
+                      {generatedTicket.paymentConfirmed ? 'Actions & Dispatches' : 'Actions (Locked Until Verified)'}
+                    </h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <button 
                         onClick={downloadTicketPDF}
-                        className="h-14 rounded-xl border border-neutral-100 hover:border-indigo-500 text-neutral-900 bg-neutral-50 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm"
+                        disabled={!generatedTicket.paymentConfirmed}
+                        className="h-14 rounded-xl border border-neutral-100 hover:border-indigo-500 text-neutral-900 bg-neutral-50 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm disabled:opacity-40 disabled:hover:border-neutral-100"
+                        title={!generatedTicket.paymentConfirmed ? "Locked until payment confirmed" : "Save PDF pass"}
                       >
-                        <Download size={16} className="text-indigo-500" />
+                        <Download size={16} className={generatedTicket.paymentConfirmed ? "text-indigo-500" : "text-neutral-400"} />
                         <span>Save PDF</span>
                       </button>
                       <button 
                         onClick={downloadTicketImage}
-                        className="h-14 rounded-xl border border-neutral-100 hover:border-indigo-500 text-neutral-900 bg-neutral-50 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm"
+                        disabled={!generatedTicket.paymentConfirmed}
+                        className="h-14 rounded-xl border border-neutral-100 hover:border-indigo-500 text-neutral-900 bg-neutral-50 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm disabled:opacity-40 disabled:hover:border-neutral-100"
+                        title={!generatedTicket.paymentConfirmed ? "Locked until payment confirmed" : "Save PNG pass"}
                       >
-                        <FileImage size={16} className="text-indigo-500" />
+                        <FileImage size={16} className={generatedTicket.paymentConfirmed ? "text-indigo-500" : "text-neutral-400"} />
                         <span>Save PNG</span>
                       </button>
                       <button 
                         onClick={emailTicketToCustomer}
-                        disabled={emailSending}
-                        className="h-14 rounded-xl border border-neutral-100 hover:border-indigo-500 text-neutral-900 bg-neutral-50 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm disabled:opacity-50"
+                        disabled={emailSending || !generatedTicket.paymentConfirmed}
+                        className="h-14 rounded-xl border border-neutral-100 hover:border-indigo-500 text-neutral-900 bg-neutral-50 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm disabled:opacity-40 disabled:hover:border-neutral-100"
                       >
                         {emailSending ? (
                           <RefreshCw size={16} className="animate-spin text-neutral-400" />
                         ) : (
-                          <Send size={16} className="text-rose-500" />
+                          <Send size={16} className={generatedTicket.paymentConfirmed ? "text-rose-500" : "text-neutral-400"} />
                         )}
                         <span>{emailSending ? 'Dispatching...' : 'Send Email'}</span>
                       </button>
+                    </div>
+
+                    <div className="bg-amber-500/5 border border-amber-500/10 p-3 rounded-xl flex items-start gap-2">
+                      <span className="text-[7.5px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 px-1 py-0.5 rounded flex-shrink-0">Sync Saver</span>
+                      <p className="text-[8.5px] font-medium text-neutral-500 uppercase tracking-tight leading-relaxed">
+                        Free tier note: Brevo limits sending to 300 free emails per day. Please download PDF/PNG above as the preferred option to conserve your daily limit.
+                      </p>
                     </div>
 
                     {emailSuccess && (
@@ -614,11 +684,7 @@ export default function EventRegistration() {
                       setEmailAddress('');
                       setGeneratedTicket(null);
                       setPhoneNumber('');
-                      setCardName('');
-                      setCardName('');
-                      setCardNumber('');
-                      setCardExpiry('');
-                      setCardCvv('');
+                      setPaymentTxId('');
                       setPaymentStep('details');
                       setEmailSuccess(null);
                     }}
@@ -688,13 +754,20 @@ export default function EventRegistration() {
                     </span>
                   </div>
 
-                  <div className="p-1.5 bg-neutral-50 rounded-lg shrink-0">
-                    <QRCodeCanvas 
-                      id="ticket-qr-item"
-                      value={generatedTicket?.id || 'TKT-PENDING-SYNC'} 
-                      size={54} 
-                      fgColor="#000000"
-                    />
+                  <div className="p-1.5 bg-neutral-50 rounded-lg shrink-0 flex items-center justify-center w-[66px] h-[66px] border border-neutral-100">
+                    {generatedTicket && !generatedTicket.paymentConfirmed ? (
+                      <div className="flex flex-col items-center justify-center text-amber-500">
+                        <Lock size={16} className="animate-pulse" />
+                        <span className="text-[5px] font-black uppercase text-amber-500 tracking-tighter mt-0.5 font-mono">Pending</span>
+                      </div>
+                    ) : (
+                      <QRCodeCanvas 
+                        id="ticket-qr-item"
+                        value={generatedTicket?.id || 'TKT-PENDING-SYNC'} 
+                        size={54} 
+                        fgColor="#000000"
+                      />
+                    )}
                   </div>
                 </div>
               </div>

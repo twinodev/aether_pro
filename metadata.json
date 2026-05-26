@@ -1,8 +1,10 @@
 {
   "name": "Duka Sync",
-  "description": "A streamlined retail tool for inventory management, POS efficiency, and clear financial reporting for distributed small businesses.",
+  "description": "A streamlined retail suite featuring Duka Sync for distributed shop inventory/POS management, and Events Ticketing for live public event registrations, digital ticket issuance, and real-time alerts.",
   "requestFramePermissions": [
     "camera"
   ],
-  "majorCapabilities": []
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

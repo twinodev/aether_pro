@@ -287,11 +287,17 @@ export default function SettingsView() {
                           <p className="text-[10px] opacity-60 uppercase tracking-widest leading-relaxed mb-4 max-w-[240px]">
                             Dispatch a verification handshake to your registered identity point to verify relay integrity.
                           </p>
-                          <div className="mb-6 p-3 bg-white/5 border border-white/10 rounded-xl">
+                          <div className="mb-6 p-3 bg-white/5 border border-white/10 rounded-xl space-y-2">
                             <p className="text-[8px] font-black uppercase tracking-widest opacity-40 mb-1">Configuration Required</p>
                             <p className="text-[9px] font-medium text-neutral-400 leading-tight">
-                              Ensure <span className="text-rose-400 text-[10px] font-bold">RESEND_API_KEY</span> is set in project environment variables.
+                              Ensure <span className="text-rose-400 text-[10px] font-bold">BREVO_API_KEY</span> and <span className="text-rose-400 text-[10px] font-bold">BREVO_SENDER_EMAIL</span> are set in project environment variables.
                             </p>
+                            <div className="pt-1.5 border-t border-white/5 flex items-start gap-1.5">
+                              <span className="text-[8px] font-black uppercase tracking-widest bg-rose-500/20 text-rose-300 px-1 py-0.5 rounded">Free Tier Notice</span>
+                              <p className="text-[8px] font-medium text-neutral-500 uppercase tracking-tight leading-normal">
+                                Standard Brevo accounts are limited to 300 free sent emails per day. Please dispatch sparingly.
+                              </p>
+                            </div>
                           </div>
                           
                           <button 

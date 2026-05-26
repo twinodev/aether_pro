@@ -2,7 +2,6 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
-import { Resend } from "resend";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -22,19 +21,6 @@ async function startServer() {
     next();
   });
 
-  // Initialize Resend lazily
-  let resend: Resend | null = null;
-  const getResend = () => {
-    const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) {
-      throw new Error("RESEND_API_KEY environment variable is required");
-    }
-    if (!resend) {
-      resend = new Resend(apiKey);
-    }
-    return resend;
-  };
-
   // API Routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", mode: process.env.NODE_ENV });
@@ -48,21 +34,63 @@ async function startServer() {
         return res.status(400).json({ error: "Missing required fields: to, subject, html" });
       }
 
-      const client = getResend();
-      const { data, error } = await client.emails.send({
-        from: "Aether Intelligence <onboarding@resend.dev>", // Default Resend domain
-        to: Array.isArray(to) ? to : [to],
-        subject,
-        html,
+      const brevoApiKey = process.env.BREVO_API_KEY;
+
+      if (brevoApiKey) {
+        // Use Brevo SMTP REST API v3
+        const senderEmail = process.env.BREVO_SENDER_EMAIL;
+        const senderName = process.env.BREVO_SENDER_NAME || "Duka Sync Suite";
+
+        if (!senderEmail) {
+          return res.status(400).json({
+            error: "BREVO_SENDER_EMAIL environment variable is required when using Brevo"
+          });
+        }
+
+        // Parse recipients list to match Brevo's format: [{ email: 'x', name: 'y' }]
+        const recipients = Array.isArray(to)
+          ? to.map((email: string) => ({ email }))
+          : [{ email: to }];
+
+        console.log(`[Email] Sending via Brevo SMTP API from <${senderEmail}> to ${to}`);
+        
+        const brevoResponse = await fetch("https://api.brevo.com/v3/smtp/email", {
+          method: "POST",
+          headers: {
+            "accept": "application/json",
+            "content-type": "application/json",
+            "api-key": brevoApiKey
+          },
+          body: JSON.stringify({
+            sender: {
+              name: senderName,
+              email: senderEmail
+            },
+            to: recipients,
+            subject: subject,
+            htmlContent: html
+          })
+        });
+
+        if (!brevoResponse.ok) {
+          const errorDetails = await brevoResponse.json().catch(() => ({ message: "Unknown error" }));
+          console.error("[Email] Brevo API Error:", errorDetails);
+          return res.status(brevoResponse.status).json({
+            error: errorDetails.message || "Failed to send email via Brevo"
+          });
+        }
+
+        const data = await brevoResponse.json();
+        return res.json({ success: true, provider: "brevo", data });
+      } 
+
+      // No Provider configured
+      return res.status(400).json({
+        error: "No email service configured. Please define BREVO_API_KEY."
       });
 
-      if (error) {
-        return res.status(400).json({ error });
-      }
-
-      res.json({ success: true, data });
     } catch (error: any) {
-      console.error("Resend error:", error);
+      console.error("Email service error:", error);
       res.status(500).json({ error: error.message });
     }
   });

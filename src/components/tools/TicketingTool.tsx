@@ -28,6 +28,7 @@ import {
   ListChecks,
   Globe,
   Edit2,
+  Bell,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -44,8 +45,10 @@ import {
   deleteEventDoc,
   updateTicketDoc,
   getLocalList,
+  saveLocalList,
 } from "../../services/ticketService";
 import { jsPDF } from "jspdf";
+import { emailService } from "../../services/emailService";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   collection,
@@ -156,9 +159,9 @@ export default function TicketingTool() {
     | "overlay"
     | "bento"
     | "industrial"
-  >("bento");
+  >("standard");
   const [orientation, setOrientation] = useState<"horizontal" | "vertical">(
-    "horizontal",
+    "vertical",
   );
   const [useBackgroundImage, setUseBackgroundImage] = useState(true);
   const [extractColor, setExtractColor] = useState(true);
@@ -190,6 +193,8 @@ export default function TicketingTool() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedEditEventId, setSelectedEditEventId] = useState<string | null>(null);
   const [eventDescription, setEventDescription] = useState("");
+  const [organizerPhone, setOrganizerPhone] = useState("0772000000");
+  const [isFree, setIsFree] = useState(false);
   const [eventTiers, setEventTiers] = useState<TicketTier[]>([
     { id: "1", name: "Ordinary", price: "20,000" },
     { id: "2", name: "VIP", price: "80,000" }
@@ -197,6 +202,32 @@ export default function TicketingTool() {
   const [eventTickets, setEventTickets] = useState<Ticket[]>([]);
   const [publishing, setPublishing] = useState(false);
   const [copiedEventId, setCopiedEventId] = useState<string | null>(null);
+  
+  // Real-time notification states
+  const [notifications, setNotifications] = useState<{
+    id: string;
+    type: "live" | "purchase";
+    ticketId: string;
+    eventTitle: string;
+    customerName: string;
+    ticketType: string;
+    price: string;
+    timestamp: string;
+    read: boolean;
+  }[]>([]);
+  const [showNotificationsHub, setShowNotificationsHub] = useState(false);
+  const [toastQueue, setToastQueue] = useState<{
+    id: string;
+    type: "live" | "purchase";
+    ticketId: string;
+    eventTitle: string;
+    customerName: string;
+    ticketType: string;
+    price: string;
+    timestamp: string;
+    read: boolean;
+  }[]>([]);
+
   // Publish validation & success modal states
   const [validationError, setValidationError] = useState<string | null>(null);
   const [newlyPublishedEvent, setNewlyPublishedEvent] = useState<Event | null>(null);
@@ -300,6 +331,74 @@ export default function TicketingTool() {
       setMyEvents(local.filter(e => e.userId === user.uid));
     });
     return () => unsubscribeEvents();
+  }, [user]);
+
+  // Live listener to watch for registration notifications on user's events
+  React.useEffect(() => {
+    if (!user) return;
+
+    // Listen to ALL tickets where current owner is the organizer
+    const qAllMyTickets = query(
+      collection(db, "tickets"),
+      where("organizerId", "==", user.uid)
+    );
+
+    let initialLoad = true;
+
+    const unsubscribeAllMyTickets = onSnapshot(qAllMyTickets, (snapshot) => {
+      const docs = snapshot.docs.map(
+        (doc) => ({ id: doc.id, ...doc.data() }) as Ticket
+      );
+
+      const newChanges = snapshot.docChanges().filter(change => change.type === "added");
+
+      if (initialLoad) {
+        initialLoad = false;
+        // Parse current tickets as quiet historical notifications
+        const initialNotifs = docs.map(data => ({
+          id: `NOTIF-${data.id}-${Date.now()}`,
+          type: "live" as const,
+          ticketId: data.id,
+          eventTitle: data.eventTitle,
+          customerName: data.customerName,
+          ticketType: data.ticketType,
+          price: data.price,
+          timestamp: data.createdAt || new Date().toISOString(),
+          read: true
+        })).sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setNotifications(initialNotifs.slice(0, 30));
+        return;
+      }
+
+      newChanges.forEach((change) => {
+        const data = change.doc.data() as Ticket;
+        const notificationId = `NOTIF-${data.id}-${Date.now()}`;
+
+        const newNotif = {
+          id: notificationId,
+          type: "live" as const,
+          ticketId: data.id,
+          eventTitle: data.eventTitle,
+          customerName: data.customerName,
+          ticketType: data.ticketType,
+          price: data.price,
+          timestamp: data.createdAt || new Date().toISOString(),
+          read: false
+        };
+
+        setNotifications((prev) => {
+          if (prev.some(n => n.ticketId === data.id)) return prev;
+          return [newNotif, ...prev];
+        });
+
+        // Add to toast queue to show floating transient banner
+        setToastQueue((prev) => [...prev, newNotif]);
+      });
+    }, (error) => {
+      console.warn("My tickets notification watcher offline:", error);
+    });
+
+    return () => unsubscribeAllMyTickets();
   }, [user]);
 
   React.useEffect(() => {
@@ -485,7 +584,7 @@ export default function TicketingTool() {
             doc.setTextColor(40, 40, 40);
             doc.text(eventTitle.toUpperCase(), 15, 15);
             doc.setFontSize(12 * fontSize);
-            doc.text(`UGX ${price}`, 15, 55);
+            doc.text(price === "0" || price === "Free" || !price ? "FREE" : `UGX ${price}`, 15, 55);
             doc.setFontSize(10 * fontSize);
             doc.text(customerName.toUpperCase(), 15, 30);
 
@@ -506,7 +605,7 @@ export default function TicketingTool() {
             doc.setFontSize(10 * fontSize);
             doc.text(customerName.toUpperCase(), 5, 40);
             doc.setFontSize(12 * fontSize);
-            doc.text(`UGX ${price}`, 5, 55);
+            doc.text(price === "0" || price === "Free" || !price ? "FREE" : `UGX ${price}`, 5, 55);
           }
         }
       }
@@ -711,6 +810,21 @@ export default function TicketingTool() {
 
       await createTicket(newTicket);
       setExploreRegisteredTicket(newTicket);
+
+      // Trigger user registration purchase notification
+      const purchaseNotif = {
+        id: `NOTIF-GUEST-${newTicket.id}-${Date.now()}`,
+        type: "purchase" as const,
+        ticketId: newTicket.id,
+        eventTitle: newTicket.eventTitle,
+        customerName: newTicket.customerName,
+        ticketType: newTicket.ticketType,
+        price: newTicket.price,
+        timestamp: newTicket.createdAt,
+        read: false
+      };
+      setNotifications((prev) => [purchaseNotif, ...prev]);
+      setToastQueue((prev) => [...prev, purchaseNotif]);
     } catch (err) {
       console.error("Failed to purchase/register ticket:", err);
       alert("An error occurred during registration. Please try again.");
@@ -729,6 +843,7 @@ export default function TicketingTool() {
       { id: "1", name: "Standard Delegate Pass", price: "45,000" },
       { id: "2", name: "VIP Executive Lounge Access", price: "185,000" }
     ]);
+    setIsFree(false);
     setValidationError(null);
   };
 
@@ -765,6 +880,10 @@ export default function TicketingTool() {
       lineHeight,
     };
 
+    const finalTiers = isFree ? eventTiers.map(t => ({ ...t, price: "0" })) : eventTiers;
+    const finalPrice = isFree ? "0" : (finalTiers[0]?.price || price);
+    const finalTicketType = finalTiers[0]?.name || ticketType;
+
     if (selectedEditEventId) {
       // Update/editing mode
       const eventData: Partial<Event> = {
@@ -772,15 +891,16 @@ export default function TicketingTool() {
         venue: venue.trim(),
         date,
         time,
-        ticketType: eventTiers[0]?.name || ticketType,
-        price: eventTiers[0]?.price || price,
-        tiers: eventTiers,
+        ticketType: finalTicketType,
+        price: finalPrice,
+        tiers: finalTiers,
         description: eventDescription,
         design,
+        organizerPhone: organizerPhone.trim()
       };
 
       try {
-        await updateDoc(doc(db, "events", selectedEditEventId), eventData);
+        await updateEventDocs(selectedEditEventId, eventData);
         setSelectedEventId(selectedEditEventId);
         
         const fullEvent: Event = {
@@ -790,12 +910,13 @@ export default function TicketingTool() {
           venue: venue.trim(),
           date,
           time,
-          ticketType: eventTiers[0]?.name || ticketType,
-          price: eventTiers[0]?.price || price,
-          tiers: eventTiers,
+          ticketType: finalTicketType,
+          price: finalPrice,
+          tiers: finalTiers,
           description: eventDescription,
           design,
-          createdAt: null
+          createdAt: null,
+          organizerPhone: organizerPhone.trim()
         };
         
         setNewlyPublishedEvent(fullEvent);
@@ -820,12 +941,13 @@ export default function TicketingTool() {
       venue: venue.trim(),
       date,
       time,
-      ticketType: eventTiers[0]?.name || ticketType,
-      price: eventTiers[0]?.price || price,
-      tiers: eventTiers,
+      ticketType: finalTicketType,
+      price: finalPrice,
+      tiers: finalTiers,
       description: eventDescription,
       design,
       createdAt: null,
+      organizerPhone: organizerPhone.trim()
     };
 
     try {
@@ -847,7 +969,7 @@ export default function TicketingTool() {
   const handleDeleteEvent = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this event and decommission all its linked passes?")) return;
     try {
-      await deleteDoc(doc(db, "events", id));
+      await deleteEventDoc(id);
       if (selectedEventId === id) setSelectedEventId(null);
     } catch (err) {
       console.error("Failed to delete event", err);
@@ -856,12 +978,87 @@ export default function TicketingTool() {
 
   const handleToggleAttendeeScanned = async (ticketId: string, currentStatus: boolean) => {
     try {
-      await updateDoc(doc(db, "tickets", ticketId), {
+      await updateTicketDoc(ticketId, {
         scanned: !currentStatus,
         scannedAt: !currentStatus ? new Date().toISOString() : null,
       });
     } catch (err) {
       console.error("Failed to toggle admission scan status", err);
+    }
+  };
+
+  const handleApprovePayment = async (ticket: Ticket) => {
+    try {
+      await updateTicketDoc(ticket.id, {
+        paymentConfirmed: true
+      });
+      
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #f0f0f0; border-radius: 16px; background-color: #ffffff;">
+          <div style="text-align: center; margin-bottom: 25px;">
+            <div style="display: inline-block; padding: 10px 20px; background-color: ${ticket.design.color || '#6366f1'}; color: #ffffff; border-radius: 8px; font-weight: bold; font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em;">
+              CONFIRMED PASS TO ${ticket.eventTitle.toUpperCase()}
+            </div>
+          </div>
+          
+          <p style="font-size: 15px; color: #333333; line-height: 1.6;">Hello <strong>${ticket.customerName}</strong>,</p>
+          <p style="font-size: 14px; color: #666666; line-height: 1.6;">Your Mobile Money payment has been verified by the organizer! Your ticket is secured and ready for scanning at check-in.</p>
+          
+          <div style="margin: 25px 0; padding: 20px; background-color: #fcfcfc; border: 1px solid #ebebeb; border-radius: 12px;">
+            <h2 style="font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.15em; color: #a3a3a3; margin-top: 0; margin-bottom: 12px;">Ticket Logistics</h2>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 6px 0; font-size: 12px; color: #737373; width: 40%;">Ticket Reference ID</td>
+                <td style="padding: 6px 0; font-size: 13px; font-weight: bold; color: #171717;">${ticket.id}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; font-size: 12px; color: #737373;">Venue Location</td>
+                <td style="padding: 6px 0; font-size: 13px; font-weight: bold; color: #171717;">${ticket.venue}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; font-size: 12px; color: #737373;">Operational Timing</td>
+                <td style="padding: 6px 0; font-size: 13px; font-weight: bold; color: #171717;">${ticket.date} @ ${ticket.time}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; font-size: 12px; color: #737373;">Admission Tier</td>
+                <td style="padding: 6px 0; font-size: 13px; font-weight: bold; color: #171717; text-transform: uppercase;">${ticket.ticketType}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; font-size: 12px; color: #737373;">Investment Claimed</td>
+                <td style="padding: 6px 0; font-size: 13px; font-weight: bold; color: #171717;">UGX ${ticket.price}</td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 0; font-size: 12px; color: #737373;">MoMo Trans. ID</td>
+                <td style="padding: 6px 0; font-size: 13px; font-weight: bold; color: #b45309; font-family: monospace;">${ticket.paymentTxId || 'N/A'}</td>
+              </tr>
+            </table>
+          </div>
+          
+          <div style="text-align: center; margin: 30px 0; font-size: 11px; color: #a3a3a3; text-transform: uppercase; letter-spacing: 0.1em;">
+            Please display this email or your downloaded ticket at check-in for scanning.
+          </div>
+          
+          <hr style="border: none; border-top: 1px solid #eaeaea; margin: 25px 0;" />
+          <p style="font-size: 10px; color: #b5b5b5; text-align: center; text-transform: uppercase; letter-spacing: 0.2em; margin: 0;">Duka Sync Suite Mobile Money Protocol // 2026</p>
+        </div>
+      `;
+      
+      if (ticket.customerEmail) {
+        try {
+          await emailService.sendEmail({
+            to: ticket.customerEmail,
+            subject: `Payment Verified & Confirmed: ${ticket.eventTitle}`,
+            html: emailHtml
+          });
+        } catch (mailErr) {
+          console.error("Brevo dispatch failure, simulation taken over", mailErr);
+        }
+      }
+      
+      // Update local setEventTickets state so it reflects instantaneously without page refresh
+      setEventTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, paymentConfirmed: true } : t));
+    } catch (err) {
+      console.error("Failed to approve payment", err);
     }
   };
 
@@ -879,8 +1076,72 @@ export default function TicketingTool() {
     { id: "overlay", label: "Overlay" },
   ];
 
+  // Auto-expire oldest notifications from the floating toast block
+  React.useEffect(() => {
+    if (toastQueue.length === 0) return;
+    const timer = setTimeout(() => {
+      setToastQueue((prev) => prev.slice(1));
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [toastQueue]);
+
   return (
     <>
+      {/* Dynamic Toast Notifications Overlay */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full px-4 sm:px-0 pointer-events-none">
+        <AnimatePresence>
+          {toastQueue.map((toast) => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, y: 50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8, x: 100 }}
+              transition={{ type: "spring", stiffness: 350, damping: 25 }}
+              className="pointer-events-auto bg-neutral-950 text-white rounded-2xl p-4 shadow-2xl border border-neutral-800 flex flex-col text-left gap-1 cursor-pointer hover:border-indigo-500 transition-colors"
+              onClick={() => {
+                // Remove this toast on click
+                setToastQueue((prev) => prev.filter((t) => t.id !== toast.id));
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1 px-2 text-[7px] font-black uppercase tracking-wider rounded-md bg-indigo-500 text-white">
+                    {toast.type === "live" ? "Live Registration" : "My Order"}
+                  </div>
+                  <span className="text-[8px] font-mono text-neutral-400">
+                    {toast.ticketId}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setToastQueue((prev) => prev.filter((t) => t.id !== toast.id));
+                  }}
+                  className="text-neutral-400 hover:text-white transition-colors"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+
+              <div className="mt-1">
+                <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">
+                  {toast.eventTitle}
+                </p>
+                <p className="text-xs font-black text-white mt-0.5">
+                  {toast.customerName}
+                </p>
+                <div className="flex items-center gap-1.5 mt-1 text-[9px] font-bold text-neutral-300">
+                  <span className="text-indigo-400 font-extrabold">{toast.ticketType}</span>
+                  <span>•</span>
+                  <span>{toast.price === "0" || toast.price === "Free" || !toast.price ? "FREE" : `UGX ${toast.price}`}</span>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
       {/* Print Styles */}
       <style
         dangerouslySetInnerHTML={{
@@ -915,7 +1176,7 @@ export default function TicketingTool() {
       />
 
       <div className="max-w-[1600px] mx-auto p-4 md:p-8 lg:p-12">
-        <header className="mb-8 md:mb-12 flex flex-col xl:flex-row xl:items-end justify-between gap-6">
+        <header className="mb-8 md:mb-12 flex flex-col xl:flex-row xl:items-end justify-between items-start xl:items-center gap-6">
           <div>
             <div className="flex items-center gap-3 mb-2">
               <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-xl shadow-indigo-500/20">
@@ -953,78 +1214,98 @@ export default function TicketingTool() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Real-time Notification Hub Trigger & Flydown Panel */}
+          <div className="relative self-stretch xl:self-auto">
             <button
-              onClick={() => setShowTemplates(!showTemplates)}
-              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 border rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm
-                ${showTemplates ? "bg-indigo-600 text-white border-indigo-600 shadow-indigo-200" : "bg-white border-neutral-200 text-neutral-600 hover:border-indigo-500 hover:text-indigo-600"}`}
+              onClick={() => {
+                setShowNotificationsHub(!showNotificationsHub);
+                // Mark all current notifications as read when opening hub
+                setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+              }}
+              className={`w-full xl:w-auto p-3.5 border rounded-2xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all relative shadow-sm
+                ${showNotificationsHub ? "bg-neutral-900 border-neutral-900 text-white" : "bg-white border-neutral-200 text-neutral-600 hover:border-indigo-500 hover:text-indigo-600"}`}
             >
-              <FolderHeart size={16} />
-              <span>Design Vault ({templates.length})</span>
+              <div className="relative">
+                <Bell size={16} className={notifications.filter((n) => !n.read).length > 0 ? "animate-bounce text-indigo-500" : ""} />
+                {notifications.filter((n) => !n.read).length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white text-[7px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center animate-pulse">
+                    {notifications.filter((n) => !n.read).length}
+                  </span>
+                )}
+              </div>
+              <span>Roster Feed ({notifications.length})</span>
             </button>
-            <button
-              onClick={handleSaveTemplate}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
-            >
-              <Save size={16} />
-              <span>Save Prototype</span>
-            </button>
+
+            <AnimatePresence>
+              {showNotificationsHub && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute right-0 mt-3 w-80 sm:w-96 bg-white border border-neutral-100 rounded-3xl p-5 shadow-2xl z-50 text-left font-sans flex flex-col max-h-[450px]"
+                >
+                  <div className="flex items-center justify-between border-b border-neutral-150 pb-3 mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                        <Bell size={14} />
+                      </span>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-neutral-800">
+                        Live Registration Wire
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setNotifications([])}
+                      className="text-[8px] font-black tracking-wider uppercase text-neutral-400 hover:text-rose-600 transition-colors"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+
+                  <div className="overflow-y-auto space-y-2 flex-1 pr-1 scrollbar-thin max-h-[300px]">
+                    {notifications.length === 0 ? (
+                      <div className="py-12 text-center text-neutral-400 text-[10px] font-black uppercase tracking-widest flex flex-col items-center justify-center gap-2">
+                        <Bell size={24} className="opacity-30 mb-1" />
+                        No admissions registered
+                      </div>
+                    ) : (
+                      notifications.map((notif) => (
+                        <div
+                          key={notif.id}
+                          className="p-3 bg-neutral-50 border border-neutral-100/50 hover:border-indigo-100 rounded-2xl transition-all flex flex-col text-left relative group overflow-hidden"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-[8px] font-mono text-neutral-400">
+                              {notif.ticketId}
+                            </span>
+                            <span className="text-[7px] font-black tracking-wider text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded uppercase">
+                              {notif.ticketType}
+                            </span>
+                          </div>
+                          <span className="text-xs font-black text-neutral-800 mt-1">
+                            {notif.customerName}
+                          </span>
+                          <span className="text-[9px] font-bold text-neutral-500 uppercase mt-0.5 tracking-tight truncate">
+                            {notif.eventTitle}
+                          </span>
+                          <div className="flex items-center justify-between mt-2 pt-2 border-t border-neutral-100/30 text-[8px] font-black text-neutral-400 uppercase tracking-wider">
+                            <span>
+                              {notif.price === "0" || notif.price === "Free" || !notif.price ? "FREE" : `UGX ${notif.price}`}
+                            </span>
+                            <span>
+                              {new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </header>
 
-        {/* Mobile Tab Switcher */}
-        <div className="flex md:hidden mb-6 bg-neutral-100 p-1 rounded-2xl">
-          <button
-            onClick={() => setActiveMobileTab("edit")}
-            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeMobileTab === "edit" ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-400"}`}
-          >
-            Configure
-          </button>
-          <button
-            onClick={() => setActiveMobileTab("preview")}
-            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeMobileTab === "preview" ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-400"}`}
-          >
-            Preview
-          </button>
-        </div>
 
-        <AnimatePresence>
-          {showTemplates && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="mb-12 overflow-hidden"
-            >
-              <div className="bg-white border border-neutral-100 rounded-[2rem] p-6 shadow-sm flex gap-4 overflow-x-auto pb-4">
-                {templates.length === 0 ? (
-                  <div className="w-full text-center py-8 text-neutral-400 text-xs font-bold uppercase tracking-widest">
-                    No saved designs found
-                  </div>
-                ) : (
-                  templates.map((tmp) => (
-                    <button
-                      key={tmp.id}
-                      onClick={() => loadTemplate(tmp)}
-                      className="shrink-0 w-48 card p-4 flex flex-col gap-2 hover:border-indigo-500 text-left transition-all group"
-                    >
-                      <div
-                        className="h-2 w-full rounded-full mb-2"
-                        style={{ backgroundColor: tmp.design.color }}
-                      />
-                      <span className="text-[10px] font-black uppercase tracking-widest block truncate">
-                        {tmp.name}
-                      </span>
-                      <span className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest">
-                        {tmp.ticketType}
-                      </span>
-                    </button>
-                  ))
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {activeToolTab === "explore" && (
           <div className="space-y-8 animate-fade-in text-left">
@@ -1444,83 +1725,10 @@ export default function TicketingTool() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-12">
-          {/* Editor Block */}
-          <div
-            className={`md:col-span-5 lg:col-span-4 space-y-6 ${activeMobileTab === "preview" ? "hidden md:block" : "block"}`}
-          >
+              <div className="max-w-2xl mx-auto w-full space-y-6">
             <div className="bg-white border border-neutral-100 rounded-[2.5rem] p-6 lg:p-8 space-y-6 lg:space-y-8 shadow-sm">
               {/* Collapsible Sections for Mobile */}
               <div className="space-y-4">
-                {/* 5 Stunning Presets Selection */}
-                <div className="border-b border-neutral-50 pb-4">
-                  <button
-                    onClick={() =>
-                      setExpandedSection(
-                        expandedSection === "presets" ? null : "presets",
-                      )
-                    }
-                    className="w-full flex items-center justify-between group"
-                  >
-                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400 group-hover:text-neutral-900 cursor-pointer">
-                      Design Presets (5 Templates)
-                    </label>
-                    <div
-                      className={`transition-transform md:hidden ${expandedSection === "presets" ? "rotate-180" : ""}`}
-                    >
-                      <Plus size={14} className="text-neutral-300" />
-                    </div>
-                  </button>
-
-                  <AnimatePresence initial={false}>
-                    {(expandedSection === "presets" ||
-                      window.innerWidth >= 768) && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="space-y-2 pt-4 overflow-hidden"
-                      >
-                        <div className="grid grid-cols-1 gap-2">
-                          {ticketPresets.map((preset) => {
-                            const isSelected = layout === preset.layout && color === preset.color && fontFamily === preset.font;
-                            return (
-                              <button
-                                key={preset.id}
-                                type="button"
-                                onClick={() => {
-                                  setLayout(preset.layout);
-                                  setColor(preset.color);
-                                  setFontFamily(preset.font);
-                                  setFontSize(preset.fontSize);
-                                  setLetterSpacing(preset.letterSpacing);
-                                  setLineHeight(preset.lineHeight);
-                                }}
-                                className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between group
-                                  ${isSelected ? "border-indigo-600 bg-indigo-50/10 shadow-sm" : "border-neutral-100 hover:border-indigo-300 hover:bg-neutral-50"}`}
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <div className="w-4 h-4 rounded-full" style={{ backgroundColor: preset.color }} />
-                                  <div className="flex flex-col">
-                                    <span className={`text-[10px] font-black uppercase tracking-tight ${isSelected ? "text-indigo-600" : "text-neutral-800"}`}>
-                                      {preset.name}
-                                    </span>
-                                    <span className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest mt-0.5">
-                                      {preset.layout} • {preset.font}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center text-white text-[8px] ${isSelected ? "bg-indigo-600 border-indigo-600" : "border-neutral-200"}`}>
-                                  {isSelected && <Check size={8} />}
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
                 {/* Event Section */}
                 <div className="border-b border-neutral-50 pb-4">
                   <button
@@ -1605,6 +1813,22 @@ export default function TicketingTool() {
                             className="w-full bg-neutral-50 border-none rounded-xl p-3 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all h-20"
                           />
                         </div>
+                        {!isFree && (
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-neutral-400 uppercase">Mobile Money Recipient Number (For Ticket Collection)</label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="Ex: +256 772 123 456"
+                              value={organizerPhone}
+                              onChange={(e) => setOrganizerPhone(e.target.value)}
+                              className="w-full bg-neutral-50 border-none rounded-xl h-12 px-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
+                            />
+                            <p className="text-[8px] font-medium text-neutral-400 uppercase tracking-tight leading-relaxed">
+                              Attendees will transfer the entrance fee directly to this MoMo number and submit their checkout with their Transaction ID.
+                            </p>
+                          </div>
+                        )}
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -1639,6 +1863,37 @@ export default function TicketingTool() {
                         exit={{ height: 0, opacity: 0 }}
                         className="space-y-4 pt-4 overflow-hidden"
                       >
+                        {/* Free Event Toggle Option */}
+                        <div className="flex items-center justify-between p-3.5 bg-neutral-50 rounded-2xl border border-neutral-100">
+                          <div className="flex flex-col text-left">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-neutral-800">
+                              Free Event Access
+                            </span>
+                            <span className="text-[8px] text-neutral-400 font-bold uppercase mt-0.5">
+                              Check this to issue passes at zero cost
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextFree = !isFree;
+                              setIsFree(nextFree);
+                              if (nextFree) {
+                                setPrice("0");
+                                setEventTiers(eventTiers.map(t => ({ ...t, price: "0" })));
+                              } else {
+                                setPrice("20,000");
+                                setEventTiers(eventTiers.map((t, idx) => ({ ...t, price: idx === 1 ? "80,000" : "20,000" })));
+                              }
+                            }}
+                            className={`w-10 h-5 rounded-full transition-colors relative ${isFree ? "bg-indigo-600" : "bg-neutral-200"}`}
+                          >
+                            <div
+                              className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${isFree ? "left-5" : "left-0.5"}`}
+                            />
+                          </button>
+                        </div>
+
                         {/* Event Ticket Tiers */}
                         <div className="space-y-3 p-3 bg-neutral-50 rounded-2xl border border-neutral-100">
                           <div className="flex items-center justify-between">
@@ -1647,14 +1902,15 @@ export default function TicketingTool() {
                             </span>
                             <button
                               type="button"
+                              disabled={isFree}
                               onClick={() => {
                                 const nextId = (eventTiers.length + 1).toString();
                                 setEventTiers([
                                   ...eventTiers,
-                                  { id: nextId, name: `Tier ${nextId}`, price: "50,000" }
+                                  { id: nextId, name: `Tier ${nextId}`, price: isFree ? "0" : "50,000" }
                                 ]);
                               }}
-                              className="px-2 py-1 bg-white hover:bg-neutral-100 text-indigo-600 border border-neutral-200 rounded-md text-[8px] font-black uppercase tracking-wider transition-all flex items-center gap-1 leading-none h-6"
+                              className="px-2 py-1 bg-white hover:bg-neutral-100 text-indigo-600 border border-neutral-200 rounded-md text-[8px] font-black uppercase tracking-wider transition-all flex items-center gap-1 leading-none h-6 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               <Plus size={10} /> Add Tier
                             </button>
@@ -1680,7 +1936,8 @@ export default function TicketingTool() {
                                   <input
                                     type="text"
                                     placeholder="Price"
-                                    value={tier.price}
+                                    disabled={isFree}
+                                    value={isFree ? "0" : tier.price}
                                     onChange={(e) => {
                                       const updated = [...eventTiers];
                                       updated[idx].price = e.target.value;
@@ -1721,7 +1978,8 @@ export default function TicketingTool() {
                             <input
                               type="text"
                               placeholder="Default Price"
-                              value={price}
+                              disabled={isFree}
+                              value={isFree ? "0" : price}
                               onChange={(e) => setPrice(e.target.value)}
                               className="w-full bg-neutral-50 border-none rounded-xl h-12 pl-12 pr-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
                             />
@@ -1763,409 +2021,6 @@ export default function TicketingTool() {
                             />
                           </div>
                         )}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Typography Section */}
-                <div className="border-b border-neutral-50 pb-4">
-                  <button
-                    onClick={() =>
-                      setExpandedSection(
-                        expandedSection === "type" ? null : "type",
-                      )
-                    }
-                    className="w-full flex items-center justify-between group"
-                  >
-                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400 group-hover:text-neutral-900 cursor-pointer">
-                      Typography & Scale
-                    </label>
-                    <div
-                      className={`transition-transform md:hidden ${expandedSection === "type" ? "rotate-180" : ""}`}
-                    >
-                      <Plus size={14} className="text-neutral-300" />
-                    </div>
-                  </button>
-
-                  <AnimatePresence initial={false}>
-                    {(expandedSection === "type" ||
-                      window.innerWidth >= 768) && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="space-y-6 pt-4 overflow-hidden"
-                      >
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Type size={12} className="text-neutral-400" />
-                              <span className="text-[10px] font-bold uppercase text-neutral-400">
-                                Typeface
-                              </span>
-                            </div>
-                            <select
-                              value={fontFamily}
-                              onChange={(e) => setFontFamily(e.target.value)}
-                              className="w-full h-10 rounded-xl bg-neutral-50 border-none text-[10px] font-bold uppercase"
-                            >
-                              <option value="Inter">Sans Modern</option>
-                              <option value="'JetBrains Mono'">
-                                Tech Mono
-                              </option>
-                              <option value="'Playfair Display'">
-                                Classic Serif
-                              </option>
-                              <option value="Outfit">Geometric</option>
-                              <option value="Space Grotesk">Technical</option>
-                            </select>
-                          </div>
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-[10px] font-bold uppercase text-neutral-400">
-                                Scale
-                              </span>
-                              <span className="text-[8px] font-mono text-indigo-500">
-                                {Math.round(fontSize * 100)}%
-                              </span>
-                            </div>
-                            <input
-                              type="range"
-                              min="0.5"
-                              max="1.5"
-                              step="0.05"
-                              value={fontSize}
-                              onChange={(e) =>
-                                setFontSize(parseFloat(e.target.value))
-                              }
-                              className="w-full h-2 accent-indigo-500 bg-neutral-100 rounded-lg appearance-none cursor-pointer mt-4"
-                            />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-[10px] font-bold uppercase text-neutral-400">
-                                Tracking
-                              </span>
-                              <span className="text-[8px] font-mono text-indigo-500">
-                                {letterSpacing}px
-                              </span>
-                            </div>
-                            <input
-                              type="range"
-                              min="-1"
-                              max="5"
-                              step="0.5"
-                              value={letterSpacing}
-                              onChange={(e) =>
-                                setLetterSpacing(parseFloat(e.target.value))
-                              }
-                              className="w-full h-2 accent-indigo-500 bg-neutral-100 rounded-lg appearance-none cursor-pointer mt-4"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-[10px] font-bold uppercase text-neutral-400">
-                                Leading
-                              </span>
-                              <span className="text-[8px] font-mono text-indigo-500">
-                                {lineHeight}
-                              </span>
-                            </div>
-                            <input
-                              type="range"
-                              min="0.8"
-                              max="1.8"
-                              step="0.1"
-                              value={lineHeight}
-                              onChange={(e) =>
-                                setLineHeight(parseFloat(e.target.value))
-                              }
-                              className="w-full h-2 accent-indigo-500 bg-neutral-100 rounded-lg appearance-none cursor-pointer mt-4"
-                            />
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Visuals Section */}
-                <div className="border-b border-neutral-50 pb-4">
-                  <button
-                    onClick={() =>
-                      setExpandedSection(
-                        expandedSection === "visuals" ? null : "visuals",
-                      )
-                    }
-                    className="w-full flex items-center justify-between group"
-                  >
-                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400 group-hover:text-neutral-900 cursor-pointer">
-                      Visual Config
-                    </label>
-                    <div
-                      className={`transition-transform md:hidden ${expandedSection === "visuals" ? "rotate-180" : ""}`}
-                    >
-                      <Plus size={14} className="text-neutral-300" />
-                    </div>
-                  </button>
-
-                  <AnimatePresence initial={false}>
-                    {(expandedSection === "visuals" ||
-                      window.innerWidth >= 768) && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="space-y-6 pt-4 overflow-hidden"
-                      >
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Palette size={12} className="text-neutral-400" />
-                              <span className="text-[10px] font-bold uppercase text-neutral-400">
-                                Main Color
-                              </span>
-                            </div>
-                            <input
-                              type="color"
-                              value={color}
-                              onChange={(e) => setColor(e.target.value)}
-                              className="w-full h-10 rounded-xl cursor-pointer bg-neutral-50 border-none"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Layout size={12} className="text-neutral-400" />
-                              <span className="text-[10px] font-bold uppercase text-neutral-400">
-                                Layout
-                              </span>
-                            </div>
-                            <select
-                              value={layout}
-                              onChange={(e) => setLayout(e.target.value as any)}
-                              className="w-full h-10 rounded-xl bg-neutral-50 border-none text-[10px] font-bold uppercase"
-                            >
-                              {layouts.map((l) => (
-                                <option key={l.id} value={l.id}>
-                                  {l.label}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Sparkles size={12} className="text-neutral-400" />
-                            <span className="text-[10px] font-bold uppercase text-neutral-400">
-                              Orientation
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              onClick={() => setOrientation("horizontal")}
-                              className={`h-10 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${orientation === "horizontal" ? "bg-neutral-900 text-white border-neutral-900 shadow-md" : "bg-white border-neutral-100 text-neutral-400"}`}
-                            >
-                              Horizontal
-                            </button>
-                            <button
-                              onClick={() => setOrientation("vertical")}
-                              className={`h-10 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${orientation === "vertical" ? "bg-neutral-900 text-white border-neutral-900 shadow-md" : "bg-white border-neutral-100 text-neutral-400"}`}
-                            >
-                              Vertical
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-2">
-                          <div className="flex items-center gap-2">
-                            <Palette size={12} className="text-neutral-400" />
-                            <span className="text-[10px] font-bold uppercase text-neutral-400 italic">
-                              Sync palette with image
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => setExtractColor(!extractColor)}
-                            className={`w-10 h-5 rounded-full transition-colors relative ${extractColor ? "bg-indigo-500" : "bg-neutral-200"}`}
-                          >
-                            <div
-                              className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${extractColor ? "left-5" : "left-0.5"}`}
-                            />
-                          </button>
-                        </div>
-
-                        {layout === "overlay" && (
-                          <div className="space-y-4 pt-4 border-t border-neutral-50">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Layout size={12} className="text-neutral-400" />
-                              <span className="text-[10px] font-bold uppercase text-neutral-400">
-                                QR/Barcode Position
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              {(
-                                [
-                                  "top-left",
-                                  "top-right",
-                                  "bottom-left",
-                                  "bottom-right",
-                                ] as const
-                              ).map((pos) => (
-                                <button
-                                  key={pos}
-                                  onClick={() => setCodePosition(pos)}
-                                  className={`h-10 rounded-xl text-[8px] font-black uppercase tracking-widest border transition-all ${codePosition === pos ? "bg-neutral-900 text-white" : "bg-white text-neutral-400 border-neutral-100"}`}
-                                >
-                                  {pos.replace("-", " ")}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Assets Section */}
-                <div className="pb-4">
-                  <button
-                    onClick={() =>
-                      setExpandedSection(
-                        expandedSection === "assets" ? null : "assets",
-                      )
-                    }
-                    className="w-full flex items-center justify-between group"
-                  >
-                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400 group-hover:text-neutral-900 cursor-pointer">
-                      Brand Assets
-                    </label>
-                    <div
-                      className={`transition-transform md:hidden ${expandedSection === "assets" ? "rotate-180" : ""}`}
-                    >
-                      <Plus size={14} className="text-neutral-300" />
-                    </div>
-                  </button>
-
-                  <AnimatePresence initial={false}>
-                    {(expandedSection === "assets" ||
-                      window.innerWidth >= 768) && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="space-y-6 pt-4 overflow-hidden"
-                      >
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold uppercase text-neutral-400">
-                              Featured Backdrop
-                            </span>
-                            {featuredImage && (
-                              <button
-                                onClick={() => setFeaturedImage(null)}
-                                className="text-[8px] font-black uppercase text-rose-500"
-                              >
-                                Remove
-                              </button>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => featuredImageRef.current?.click()}
-                            className="w-full h-24 border-2 border-dashed border-neutral-100 rounded-xl flex flex-col items-center justify-center gap-2 hover:bg-neutral-50 transition-colors overflow-hidden group"
-                          >
-                            {featuredImage ? (
-                              <img
-                                src={featuredImage}
-                                alt="featured preview"
-                                className="w-full h-full object-cover group-hover:scale-110 transition-transform"
-                              />
-                            ) : (
-                              <>
-                                <ImageIcon
-                                  size={20}
-                                  className="text-neutral-300"
-                                />
-                                <span className="text-[8px] font-bold uppercase text-neutral-400">
-                                  Select Image
-                                </span>
-                              </>
-                            )}
-                          </button>
-                          <input
-                            type="file"
-                            ref={featuredImageRef}
-                            onChange={handleFeaturedImageUpload}
-                            className="hidden"
-                            accept="image/*"
-                          />
-                        </div>
-
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold uppercase text-neutral-400">
-                              Organization Logo
-                            </span>
-                            {logo && (
-                              <button
-                                onClick={() => setLogo(null)}
-                                className="text-[8px] font-black uppercase text-rose-500"
-                              >
-                                Remove
-                              </button>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="w-full h-12 border-2 border-dashed border-neutral-100 rounded-xl flex items-center justify-center gap-2 hover:bg-neutral-50 transition-colors"
-                          >
-                            {logo ? (
-                              <img
-                                src={logo}
-                                alt="preview"
-                                className="h-6 w-6 object-contain"
-                              />
-                            ) : (
-                              <ImageIcon
-                                size={16}
-                                className="text-neutral-300"
-                              />
-                            )}
-                            <span className="text-[10px] font-bold uppercase text-neutral-400 truncate max-w-[150px]">
-                              {logo ? "Logo Uploaded" : "Select Logo"}
-                            </span>
-                          </button>
-                          <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleLogoUpload}
-                            className="hidden"
-                            accept="image/*"
-                          />
-                        </div>
-
-                        <div className="space-y-3">
-                          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400 block mb-3">
-                            Validator
-                          </span>
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              onClick={() => setCodeType("qr")}
-                              className={`h-12 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${codeType === "qr" ? "bg-indigo-600 border-indigo-600 text-white shadow-lg" : "bg-white border-neutral-100 text-neutral-400"}`}
-                            >
-                              QR Engine
-                            </button>
-                            <button
-                              onClick={() => setCodeType("barcode")}
-                              className={`h-12 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${codeType === "barcode" ? "bg-indigo-600 border-indigo-600 text-white shadow-lg" : "bg-white border-neutral-100 text-neutral-400"}`}
-                            >
-                              Barcode
-                            </button>
-                          </div>
-                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -2308,26 +2163,9 @@ export default function TicketingTool() {
               )}
             </div>
 
-            {/* Tips Card for Desktop */}
-            <div className="hidden lg:block bg-indigo-600 rounded-[2rem] p-8 text-white relative overflow-hidden group shadow-2xl shadow-indigo-600/20">
-              <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700" />
-              <h4 className="text-xl font-black uppercase italic mb-4">
-                Pro Insight
-              </h4>
-              <p className="text-indigo-100 text-xs font-medium leading-relaxed opacity-80 mb-6">
-                Use high-contrast colors for QR readability. The "Overlay"
-                engine works best with pre-designed 5.5x2 inch templates.
-              </p>
-              <div className="flex items-center gap-2 text-[10px] font-black tracking-widest uppercase">
-                <Shield size={14} />
-                <span>Encrypted Asset Delivery</span>
-              </div>
-            </div>
-          </div>
-
           {/* Live Preview Block */}
           <div
-            className={`md:col-span-7 lg:col-span-8 flex flex-col items-center ${activeMobileTab === "edit" ? "hidden md:flex" : "flex"}`}
+            className="hidden"
           >
             <div className="w-full flex items-center justify-between mb-6 bg-neutral-900 p-4 rounded-2xl shadow-2xl">
               <div className="flex items-center gap-4">
@@ -2578,7 +2416,7 @@ export default function TicketingTool() {
                               Investment
                             </div>
                             <div className="text-[10px] md:text-sm font-black italic">
-                              UGX {price}
+                              {price === "0" || price === "Free" || !price ? "FREE" : `UGX ${price}`}
                             </div>
                           </div>
                         </div>
@@ -2665,7 +2503,7 @@ export default function TicketingTool() {
 
                           <div className="flex items-end justify-between pt-1">
                             <div className="text-xl md:text-4xl font-black italic">
-                              UGX {price}
+                              {price === "0" || price === "Free" || !price ? "FREE" : `UGX ${price}`}
                             </div>
                             <div className="hidden sm:block text-[8px] md:text-[10px] font-black uppercase text-neutral-500">
                               Verified Protocol // 2026
@@ -2824,7 +2662,7 @@ export default function TicketingTool() {
                             <span
                               className={`${orientation === "vertical" ? "text-base md:text-lg" : "text-xs md:text-2xl"} font-black tracking-tighter italic ${layout === "neon" ? "text-[#00f3ff]" : "text-neutral-900"}`}
                             >
-                              UGX {price}
+                              {price === "0" || price === "Free" || !price ? "FREE" : `UGX ${price}`}
                             </span>
                           </div>
                         </div>
@@ -3078,10 +2916,12 @@ export default function TicketingTool() {
                                 setTime(evt.time);
                                 setTicketType(evt.ticketType || "General Admission");
                                 setPrice(evt.price || "50,000");
+                                setIsFree(evt.price === "0" || evt.price === "Free" || !evt.price);
                                 setEventTiers(evt.tiers || [
                                   { id: "1", name: evt.ticketType || "General Admission", price: evt.price || "50,000" }
                                 ]);
                                 setEventDescription(evt.description || "");
+                                setOrganizerPhone(evt.organizerPhone || "0772000000");
                                 if (evt.design) {
                                   setColor(evt.design.color);
                                   setLayout(evt.design.layout);
@@ -3273,6 +3113,9 @@ export default function TicketingTool() {
                                 second: "2-digit"
                               }) : "";
 
+                              const isPaidTicket = ticket.price && ticket.price !== '0' && ticket.price.toLowerCase() !== 'free';
+                              const isPaymentApproved = !isPaidTicket || ticket.paymentConfirmed;
+
                               return (
                                 <div 
                                   key={ticket.id}
@@ -3296,18 +3139,46 @@ export default function TicketingTool() {
                                         Admitted @ {admissionTime}
                                       </span>
                                     )}
+                                    {isPaidTicket && (
+                                      <div className="flex flex-col gap-1 mt-1">
+                                        {ticket.paymentConfirmed ? (
+                                          <span className="text-[7.5px] font-black uppercase text-emerald-600 bg-emerald-50/50 px-2 py-0.5 rounded-full inline-flex items-center gap-1 border border-emerald-100 self-start">
+                                            <Check size={8} /> Payment Verified ({ticket.paymentMethod?.toUpperCase() || 'MOMO'})
+                                          </span>
+                                        ) : (
+                                          <div className="flex flex-col gap-0.5 p-1.5 rounded-lg bg-amber-500/5 border border-amber-500/10 self-start">
+                                            <span className="text-[7.5px] font-black uppercase text-amber-700 flex items-center gap-1">
+                                              <span>⚠️ Awaiting Verification</span>
+                                            </span>
+                                            <span className="font-mono text-[7px] text-amber-600 font-bold">
+                                              TxID: {ticket.paymentTxId || 'Not Entered'} ({ticket.paymentMethod?.toUpperCase() || 'MOMO'})
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
 
-                                  <button 
-                                    onClick={() => handleToggleAttendeeScanned(ticket.id, !!ticket.scanned)}
-                                    className={`h-10 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 border
-                                      ${ticket.scanned 
-                                        ? 'bg-rose-50 border-rose-100 text-rose-600 hover:bg-rose-100' 
-                                        : 'bg-emerald-500 border-emerald-500 text-white hover:bg-emerald-600 shadow-md shadow-emerald-500/10'}`}
-                                  >
-                                    <ListChecks size={12} />
-                                    <span>{ticket.scanned ? 'Revoke Admission' : 'Admit Pass'}</span>
-                                  </button>
+                                  {!isPaymentApproved ? (
+                                    <button 
+                                      onClick={() => handleApprovePayment(ticket)}
+                                      className="h-10 px-4 bg-amber-500 hover:bg-amber-600 border border-amber-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/10 animate-pulse"
+                                    >
+                                      <Check size={12} />
+                                      <span>Verify Payment</span>
+                                    </button>
+                                  ) : (
+                                    <button 
+                                      onClick={() => handleToggleAttendeeScanned(ticket.id, !!ticket.scanned)}
+                                      className={`h-10 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 border
+                                        ${ticket.scanned 
+                                          ? 'bg-rose-50 border-rose-100 text-rose-600 hover:bg-rose-100' 
+                                          : 'bg-emerald-500 border-emerald-500 text-white hover:bg-emerald-600 shadow-md shadow-emerald-500/10'}`}
+                                    >
+                                      <ListChecks size={12} />
+                                      <span>{ticket.scanned ? 'Revoke Admission' : 'Admit Pass'}</span>
+                                    </button>
+                                  )}
                                 </div>
                               );
                             })}
