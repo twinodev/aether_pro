@@ -2,6 +2,24 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import { fileURLToPath } from "url";
+
+// Auto-detect production runtime to bypass missing NODE_ENV flags in custom containers
+let isProdRuntime = false;
+try {
+  const currentFile = typeof import.meta !== "undefined" && import.meta.url ? fileURLToPath(import.meta.url) : "";
+  isProdRuntime = currentFile.endsWith(".cjs") || currentFile.endsWith(".js") || currentFile.includes("dist");
+} catch (e) {
+  if (typeof __filename !== "undefined") {
+    isProdRuntime = __filename.endsWith(".cjs") || __filename.endsWith(".js") || __filename.includes("dist");
+  }
+}
+
+if (isProdRuntime || process.env.NODE_ENV === "production") {
+  process.env.NODE_ENV = "production";
+} else {
+  process.env.NODE_ENV = "development";
+}
 
 dotenv.config();
 
