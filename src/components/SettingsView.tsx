@@ -17,6 +17,11 @@ export default function SettingsView() {
 
   const sendTestEmail = async () => {
     if (!user?.email) return;
+    if (!isAdmin) {
+      setEmailStatus('error');
+      setErrorMessage('Access Denied: Only the verified administrator is permitted to dispatch test signals.');
+      return;
+    }
     
     setEmailStatus('loading');
     setErrorMessage('');
@@ -300,11 +305,13 @@ export default function SettingsView() {
                             </div>
                           </div>
                           
-                          <button 
+                           <button 
                             onClick={sendTestEmail}
-                            disabled={emailStatus === 'loading' || !user?.email}
+                            disabled={emailStatus === 'loading' || !user?.email || !isAdmin}
                             className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
-                              emailStatus === 'loading' 
+                              !isAdmin
+                                ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed'
+                                : emailStatus === 'loading' 
                                 ? 'bg-neutral-800 dark:bg-neutral-200 cursor-wait' 
                                 : emailStatus === 'success'
                                 ? 'bg-emerald-500 text-white'
@@ -316,7 +323,8 @@ export default function SettingsView() {
                             {emailStatus === 'loading' && <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                             {emailStatus === 'success' && <Check size={14} />}
                             {emailStatus === 'error' && <AlertTriangle size={14} />}
-                            {emailStatus === 'loading' ? 'Transmitting...' : 
+                            {!isAdmin ? 'Admin Only Relay' :
+                             emailStatus === 'loading' ? 'Transmitting...' : 
                              emailStatus === 'success' ? 'Relay Confirmed' : 
                              emailStatus === 'error' ? 'Relay Failed' : 
                              'Dispatch Test Signal'}

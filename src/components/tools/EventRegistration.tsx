@@ -99,6 +99,7 @@ export default function EventRegistration() {
       design: eventData.design,
       createdAt: null,
       organizerPhone: eventData.organizerPhone,
+      organizerPhoneName: eventData.organizerPhoneName,
       paymentConfirmed: isFree,
       paymentTxId: isFree ? "" : paymentTxId.trim().toUpperCase(),
       paymentMethod: isFree ? undefined : paymentMethod
@@ -484,11 +485,21 @@ export default function EventRegistration() {
                         Please send your transfer of <strong className="text-neutral-900">UGX {eventData.price}</strong> directly to the organizer's phone number:
                       </p>
                       <div className="bg-white rounded-xl p-3 border border-neutral-50 flex items-center justify-between">
-                        <div>
-                          <span className="text-[7.5px] font-black text-neutral-400 uppercase tracking-wider block">Recipient Mobile Money</span>
-                          <span className="font-mono text-sm font-black text-neutral-800 tracking-tight">
-                            {eventData.organizerPhone || '0772 000 000'}
-                          </span>
+                        <div className="space-y-2">
+                          <div>
+                            <span className="text-[7.5px] font-black text-neutral-400 uppercase tracking-wider block">Recipient Mobile Money</span>
+                            <span className="font-mono text-sm font-black text-neutral-800 tracking-tight">
+                              {eventData.organizerPhone || '0772 000 000'}
+                            </span>
+                          </div>
+                          {eventData.organizerPhoneName && (
+                            <div className="pt-1.5 border-t border-dashed border-neutral-100">
+                              <span className="text-[7.5px] font-black text-neutral-400 uppercase tracking-wider block">Registered Account Name</span>
+                              <span className="text-xs font-black text-indigo-600 block uppercase leading-snug">
+                                {eventData.organizerPhoneName}
+                              </span>
+                            </div>
+                          )}
                         </div>
                         <button
                           type="button"

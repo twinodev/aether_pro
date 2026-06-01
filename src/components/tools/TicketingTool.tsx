@@ -29,6 +29,7 @@ import {
   Globe,
   Edit2,
   Bell,
+  Search,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -46,10 +47,12 @@ import {
   updateTicketDoc,
   getLocalList,
   saveLocalList,
+  getTicket,
 } from "../../services/ticketService";
 import { jsPDF } from "jspdf";
 import { emailService } from "../../services/emailService";
 import { useAuth } from "../../contexts/AuthContext";
+import RevenueGrowthChart from "./RevenueGrowthChart";
 import {
   collection,
   query,
@@ -127,7 +130,7 @@ const ticketPresets: TicketPreset[] = [
 ];
 
 export default function TicketingTool() {
-  const { user } = useAuth();
+  const { user, isVip } = useAuth();
   const [loading, setLoading] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [success, setSuccess] = useState(false);
@@ -194,6 +197,7 @@ export default function TicketingTool() {
   const [selectedEditEventId, setSelectedEditEventId] = useState<string | null>(null);
   const [eventDescription, setEventDescription] = useState("");
   const [organizerPhone, setOrganizerPhone] = useState("0772000000");
+  const [organizerPhoneName, setOrganizerPhoneName] = useState("JOEL MUKASA");
   const [isFree, setIsFree] = useState(false);
   const [eventTiers, setEventTiers] = useState<TicketTier[]>([
     { id: "1", name: "Ordinary", price: "20,000" },
@@ -246,6 +250,35 @@ export default function TicketingTool() {
   const [exploreSearch, setExploreSearch] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const [exploreRegisteredTicket, setExploreRegisteredTicket] = useState<Ticket | null>(null);
+
+  // Ticket tracking states
+  const [exploreSubTab, setExploreSubTab] = useState<'events' | 'track'>('events');
+  const [trackTicketId, setTrackTicketId] = useState('');
+  const [trackedTicket, setTrackedTicket] = useState<Ticket | null>(null);
+  const [trackLoading, setTrackLoading] = useState(false);
+  const [trackError, setTrackError] = useState<string | null>(null);
+
+  const handleTrackTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanId = trackTicketId.trim();
+    if (!cleanId) return;
+    setTrackLoading(true);
+    setTrackError(null);
+    setTrackedTicket(null);
+    try {
+      const ticketResult = await getTicket(cleanId);
+      if (ticketResult) {
+        setTrackedTicket(ticketResult);
+      } else {
+        setTrackError("Ticket pass record not found. Please verify your reference signature ID format or connection.");
+      }
+    } catch (err) {
+      console.error(err);
+      setTrackError("Unable to retrieve ticket pass at this time. Please check your network or try again.");
+    } finally {
+      setTrackLoading(false);
+    }
+  };
 
   const filteredExploreEvents = allPublicEvents.filter((evt) => {
     const q = exploreSearch.toLowerCase();
@@ -896,7 +929,8 @@ export default function TicketingTool() {
         tiers: finalTiers,
         description: eventDescription,
         design,
-        organizerPhone: organizerPhone.trim()
+        organizerPhone: organizerPhone.trim(),
+        organizerPhoneName: organizerPhoneName.trim()
       };
 
       try {
@@ -916,7 +950,8 @@ export default function TicketingTool() {
           description: eventDescription,
           design,
           createdAt: null,
-          organizerPhone: organizerPhone.trim()
+          organizerPhone: organizerPhone.trim(),
+          organizerPhoneName: organizerPhoneName.trim()
         };
         
         setNewlyPublishedEvent(fullEvent);
@@ -947,7 +982,8 @@ export default function TicketingTool() {
       description: eventDescription,
       design,
       createdAt: null,
-      organizerPhone: organizerPhone.trim()
+      organizerPhone: organizerPhone.trim(),
+      organizerPhoneName: organizerPhoneName.trim()
     };
 
     try {
@@ -985,6 +1021,200 @@ export default function TicketingTool() {
     } catch (err) {
       console.error("Failed to toggle admission scan status", err);
     }
+  };
+
+  const handlePrintRosterPDF = (eventObj: Event, ticketsOfEvent: Ticket[]) => {
+    const doc = new jsPDF({
+      orientation: "p",
+      unit: "mm",
+      format: "a4",
+    });
+
+    const leftMargin = 15;
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const rightMargin = 15;
+    const contentWidth = pageWidth - leftMargin - rightMargin; // 180mm
+
+    let pageNum = 1;
+
+    // Helper to draw clean visual headers
+    const drawHeader = (isFirstPage: boolean) => {
+      // Top bar indicator
+      doc.setFillColor(15, 23, 42); // slate 900
+      doc.rect(leftMargin, 15, contentWidth, 3, "F");
+
+      if (isFirstPage) {
+        // Document Category Heading
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(115, 115, 115); // Gray 400ish
+        doc.text("OFFICIAL ATTENDANCE ROSTER & ENTRY GATE DESK", leftMargin, 24);
+
+        // Event Title (Display Style, Bold italic uppercase)
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(18);
+        doc.setTextColor(15, 23, 42); // Black slate
+        doc.text(eventObj.eventTitle.toUpperCase(), leftMargin, 32);
+
+        // Date, Venue Info Panel
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(82, 82, 82);
+        const eventDateStr = new Date(eventObj.date).toLocaleDateString("en-US", {
+          weekday: 'long', month: 'short', day: 'numeric', year: 'numeric'
+        });
+        doc.text(`DATE: ${eventDateStr} @ ${eventObj.time}`, leftMargin, 38);
+        doc.text(`VENUE: ${eventObj.venue.toUpperCase()}`, leftMargin, 42);
+
+        // Stats summary callout block
+        doc.setFillColor(245, 245, 245);
+        doc.rect(leftMargin, 46, contentWidth, 10, "F");
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.setTextColor(30, 41, 59);
+        const admittedCount = ticketsOfEvent.filter(t => t.scanned).length;
+        const totalCount = ticketsOfEvent.length;
+        doc.text(`TOTAL TICKET ENTITIES REGISTERED: ${totalCount}`, leftMargin + 4, 52);
+        doc.text(`PRE-CHECKED IN: ${admittedCount}`, leftMargin + 85, 52);
+        doc.text(`GENERATED: ${new Date().toLocaleDateString()} @ ${new Date().toLocaleTimeString()}`, leftMargin + 130, 52);
+      } else {
+        // Header on later pages (compact style)
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.setTextColor(115, 115, 115);
+        doc.text(`ROSTER: ${eventObj.eventTitle.toUpperCase()}`, leftMargin, 24);
+        doc.setDrawColor(229, 229, 229);
+        doc.line(leftMargin, 26, leftMargin + contentWidth, 26);
+      }
+    };
+
+    const drawTableColumns = (yPos: number) => {
+      // Header fill background color
+      doc.setFillColor(30, 41, 59); // slate 800
+      doc.rect(leftMargin, yPos, contentWidth, 8, "F");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(255, 255, 255);
+
+      // Column label titles (aligned with our widths: 10, 28, 40, 42, 22, 22, 16)
+      doc.text("#", leftMargin + 2, yPos + 5.5);
+      doc.text("TICKET ID", leftMargin + 10 + 2, yPos + 5.5);
+      doc.text("ATTENDEE NAME", leftMargin + 38 + 2, yPos + 5.5);
+      doc.text("CONTACT / EMAIL", leftMargin + 78 + 2, yPos + 5.5);
+      doc.text("TIER / CLASS", leftMargin + 120 + 2, yPos + 5.5);
+      doc.text("PAYMENT", leftMargin + 142 + 2, yPos + 5.5);
+      doc.text("STATUS", leftMargin + 164 + 2, yPos + 5.5);
+    };
+
+    const drawFooter = () => {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(150, 150, 150);
+      doc.text("Gatekeeper Offline Entry Support Ledger - Printed via Ticketing Tool. Unauthorized replication strictly prohibited.", leftMargin, pageHeight - 10);
+      doc.text(`Page ${pageNum}`, leftMargin + contentWidth - 10, pageHeight - 10);
+    };
+
+    // Draw Page 1 Core
+    drawHeader(true);
+    let currentY = 60; // Start table below the header info box
+
+    drawTableColumns(currentY);
+    currentY += 8; // Adjust after columns heading
+
+    ticketsOfEvent.forEach((ticket, i) => {
+      // Check if we reached the page limits
+      if (currentY > 265) {
+        drawFooter();
+        doc.addPage();
+        pageNum++;
+        drawHeader(false);
+        currentY = 32; // On second page, compact table header starts at 26, column headers at 32
+        drawTableColumns(currentY);
+        currentY += 8;
+      }
+
+      // Alternating row highlighting background colour
+      if (i % 2 === 0) {
+        doc.setFillColor(248, 250, 252); // extremely subtle blue-gray
+        doc.rect(leftMargin, currentY, contentWidth, 9, "F");
+      }
+
+      // Border bounds line
+      doc.setDrawColor(241, 245, 249);
+      doc.line(leftMargin, currentY + 9, leftMargin + contentWidth, currentY + 9);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(15, 23, 42); // text slate 900
+
+      // # Index
+      doc.text(String(i + 1), leftMargin + 2, currentY + 6);
+
+      // Ticket ID
+      doc.setFont("courier", "bold");
+      doc.setFontSize(7.5);
+      doc.text(ticket.id, leftMargin + 10 + 2, currentY + 6);
+
+      // Normal font for rest
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+
+      // Customer Name
+      const nameLimited = ticket.customerName.length > 22 ? ticket.customerName.substring(0, 20) + ".." : ticket.customerName;
+      doc.text(nameLimited.toUpperCase(), leftMargin + 38 + 2, currentY + 6);
+
+      // Contact detail
+      const contactVal = ticket.customerEmail || ticket.customerPhone || "N/A";
+      const contactLimited = contactVal.length > 24 ? contactVal.substring(0, 22) + ".." : contactVal;
+      doc.text(contactLimited, leftMargin + 78 + 2, currentY + 6);
+
+      // Tier Class
+      const tierVal = ticket.ticketType || "General";
+      const tierLimited = tierVal.length > 12 ? tierVal.substring(0, 11) + "." : tierVal;
+      doc.text(tierLimited.toUpperCase(), leftMargin + 120 + 2, currentY + 6);
+
+      // Payment Status
+      const isPaid = ticket.price && ticket.price !== '0' && ticket.price.toLowerCase() !== 'free';
+      let payStatus = "FREE";
+      if (isPaid) {
+        payStatus = ticket.paymentConfirmed ? "PAID" : "AWAIT_VERIFY";
+      }
+      doc.setFont("helvetica", "bold");
+      if (payStatus === "AWAIT_VERIFY") {
+        doc.setTextColor(180, 83, 9); // amber 700
+      } else if (payStatus === "FREE") {
+        doc.setTextColor(30, 41, 59);
+      } else {
+        doc.setTextColor(5, 150, 105); // emerald 600
+      }
+      doc.text(payStatus, leftMargin + 142 + 2, currentY + 6);
+
+      // Restore color
+      doc.setTextColor(15, 23, 42);
+
+      // Signature/Checkbox cell helper drawing
+      doc.setFont("helvetica", "normal");
+      if (ticket.scanned) {
+        doc.setTextColor(16, 185, 129);
+        doc.text("[X] IN", leftMargin + 164 + 2, currentY + 6);
+      } else {
+        doc.setTextColor(148, 163, 184); // light slate gray 400
+        doc.text("[  ] ___", leftMargin + 164 + 1, currentY + 6);
+      }
+
+      currentY += 9;
+    });
+
+    // Final page footer draw call
+    drawFooter();
+
+    // Trigger save download
+    const cleanDateStr = new Date(eventObj.date).toISOString().split('T')[0];
+    const safeTitle = eventObj.eventTitle.toLowerCase().replace(/[^a-z0-9]+/g, '_').substring(0, 25);
+    doc.save(`roster_${safeTitle}_${cleanDateStr}.pdf`);
   };
 
   const handleApprovePayment = async (ticket: Ticket) => {
@@ -1342,93 +1572,294 @@ export default function TicketingTool() {
               </div>
             </div>
 
-            {/* Event Cards Grid */}
-            {filteredExploreEvents.length === 0 ? (
-              <div className="bg-white border border-neutral-100 rounded-[2.5rem] p-12 text-center max-w-md mx-auto my-12 shadow-sm space-y-4">
-                <div className="w-16 h-16 bg-neutral-50 text-neutral-400 rounded-full flex items-center justify-center mx-auto">
-                  <Globe size={32} />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black uppercase text-neutral-800 tracking-wider">No Events Listed</h3>
-                  <p className="text-[11px] text-neutral-400 font-medium leading-relaxed uppercase mt-1">
-                    Check back soon or publish an event from the design studio to see it appear in this catalog.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredExploreEvents.map((evt) => {
-                  const hasTiers = evt.tiers && evt.tiers.length > 0;
-                  const startingPrice = hasTiers
-                    ? Math.min(...evt.tiers!.map((t) => parseFloat(String(t.price).replace(/,/g, "")) || 0))
-                    : parseFloat(String(evt.price).replace(/,/g, "")) || 0;
-                  const startingPriceLabel = startingPrice === 0 ? "FREE" : `UGX ${startingPrice.toLocaleString()}`;
+            {/* Explore Sub-Tabs navigation */}
+            <div className="flex border-b border-neutral-100 gap-8 pb-1">
+              <button
+                onClick={() => setExploreSubTab('events')}
+                className={`pb-3 text-xs font-black uppercase tracking-widest relative transition-all ${
+                  exploreSubTab === 'events' 
+                    ? 'text-neutral-900 border-b-2 border-neutral-950' 
+                    : 'text-neutral-400 hover:text-neutral-700'
+                }`}
+              >
+                All Public Events
+              </button>
+              <button
+                onClick={() => setExploreSubTab('track')}
+                className={`pb-3 text-xs font-black uppercase tracking-widest relative transition-all ${
+                  exploreSubTab === 'track' 
+                    ? 'text-neutral-900 border-b-2 border-neutral-950' 
+                    : 'text-neutral-400 hover:text-neutral-700'
+                }`}
+              >
+                Track Ticket Status
+              </button>
+            </div>
 
-                  return (
-                    <div
-                      key={evt.id}
-                      className="bg-white border border-neutral-100 hover:border-indigo-400 hover:shadow-xl rounded-[2.2rem] p-6 lg:p-8 flex flex-col justify-between transition-all group duration-300"
+            {exploreSubTab === 'track' ? (
+              <div className="max-w-xl mx-auto space-y-8 animate-fade-in py-4 w-full">
+                <div className="bg-white border border-neutral-100 rounded-[2.5rem] p-6 sm:p-10 shadow-sm text-center space-y-6">
+                  <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto shadow-sm">
+                    <Search size={32} />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-black uppercase tracking-widest text-neutral-800">
+                      Secure Pass Audit Desk
+                    </h3>
+                    <p className="text-[10px] text-neutral-400 font-semibold uppercase max-w-sm mx-auto leading-relaxed">
+                      Enter the unique ID (e.g. T-xxxxxxx) obtained upon registration to check live entry permission, seat tiering, or mobile money payment verification status.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleTrackTicket} className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="e.g. T-171722883011"
+                      value={trackTicketId}
+                      onChange={(e) => setTrackTicketId(e.target.value)}
+                      className="bg-neutral-50 rounded-xl h-12 px-4 text-xs font-mono font-bold flex-1 border-neutral-100 focus:ring-2 focus:ring-indigo-500/20 text-center"
+                    />
+                    <button
+                      type="submit"
+                      disabled={trackLoading}
+                      className="h-12 px-6 bg-neutral-900 hover:bg-black text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md flex items-center gap-2"
                     >
-                      <div className="space-y-4 text-left">
-                        {/* Status + Price Badge */}
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[8px] font-mono bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
-                            ID: {evt.id}
-                          </span>
-                          <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
-                            {startingPrice === 0 ? "FREE" : `Starts at ${startingPriceLabel}`}
-                          </span>
+                      {trackLoading ? 'Searching...' : 'Track Ticket'}
+                    </button>
+                  </form>
+
+                  {trackError && (
+                    <motion.p
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-[10px] font-bold text-rose-600 bg-rose-50/50 p-3 rounded-xl border border-rose-100/50 uppercase leading-relaxed text-left"
+                    >
+                      ⚠️ {trackError}
+                    </motion.p>
+                  )}
+                </div>
+
+                {/* Tracked Ticket Layout display */}
+                {trackedTicket && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="border border-neutral-100 bg-neutral-50 p-6 rounded-[2.5rem] flex flex-col items-center gap-6"
+                  >
+                    <div className="w-full text-center border-b border-dashed border-neutral-200 pb-4">
+                      <span className="text-[9px] font-black uppercase tracking-[0.2em] text-neutral-400 block mb-1">
+                        Current Entry Status
+                      </span>
+                      {trackedTicket.scanned ? (
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500 text-white rounded-full text-[8px] font-black uppercase tracking-widest shadow-md shadow-emerald-500/10">
+                          <Check size={10} />
+                          Admitted / Checked In
                         </div>
-
-                        {/* Title */}
-                        <h3 className="text-lg font-black uppercase italic tracking-tight text-neutral-900 group-hover:text-indigo-600 transition-colors line-clamp-2">
-                          {evt.eventTitle}
-                        </h3>
-
-                        {/* Date & Location */}
-                        <div className="space-y-2 text-[10px] text-neutral-500 font-medium">
-                          <div className="flex items-center gap-2">
-                            <Calendar size={13} className="text-neutral-400 shrink-0" />
-                            <span>{evt.date} @ {evt.time}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <MapPin size={13} className="text-neutral-400 shrink-0" />
-                            <span>{evt.venue}</span>
-                          </div>
+                      ) : (
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-600 text-white rounded-full text-[8px] font-black uppercase tracking-widest shadow-md shadow-indigo-600/10">
+                          <Sparkles size={10} />
+                          Ready for Entry / Valid Gate Pass
                         </div>
+                      )}
+                    </div>
 
-                        {/* Description */}
-                        {evt.description ? (
-                          <p className="text-[11px] text-neutral-400 font-medium leading-relaxed line-clamp-3 border-t border-neutral-50 pt-3">
-                            {evt.description}
-                          </p>
-                        ) : (
-                          <p className="text-[11px] text-neutral-300 italic font-medium leading-relaxed border-t border-neutral-50 pt-3">
-                            No special instructions compiled for this event.
-                          </p>
-                        )}
+                    <div
+                      className={`w-full max-w-md p-6 bg-white border border-neutral-100 rounded-3xl relative shadow-md text-left overflow-hidden`}
+                    >
+                      {/* Event Banner */}
+                      <div className="flex justify-between items-start border-b border-dashed border-neutral-100 pb-4 mb-4 gap-4">
+                        <div className="space-y-1">
+                          <span className="text-[7px] font-black tracking-[0.25em] uppercase text-indigo-600">Verified Ticket Portal</span>
+                          <h4 className="text-sm font-black uppercase text-neutral-900 tracking-tight leading-tight">
+                            {trackedTicket.eventTitle}
+                          </h4>
+                          <p className="text-[8px] text-neutral-400 font-bold uppercase">{trackedTicket.venue}</p>
+                        </div>
+                        <span className="text-[9px] font-black uppercase bg-neutral-100 text-neutral-800 px-2.5 py-1 rounded-full shrink-0">
+                          {trackedTicket.price === "0" || !trackedTicket.price ? "FREE" : `UGX ${trackedTicket.price}`}
+                        </span>
                       </div>
 
-                      {/* Buy Ticket Button */}
+                      {/* Ticket Details */}
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-[9px] mb-4 font-semibold uppercase text-neutral-500 border-b border-dashed border-neutral-100 pb-4">
+                        <div>
+                          <span className="text-[7.5px] font-bold text-neutral-400 block mb-0.5">Attendee Name</span>
+                          <span className="text-neutral-800 font-black truncate block">{trackedTicket.customerName}</span>
+                        </div>
+                        <div>
+                          <span className="text-[7.5px] font-bold text-neutral-400 block mb-0.5">Contact Line</span>
+                          <span className="text-neutral-800 font-black truncate block">{trackedTicket.customerPhone || "N/A"}</span>
+                        </div>
+                        <div>
+                          <span className="text-[7.5px] font-bold text-neutral-400 block mb-0.5 font-mono">Mail Identity</span>
+                          <span className="text-neutral-800 font-black truncate block font-mono">{trackedTicket.customerEmail || "N/A"}</span>
+                        </div>
+                        <div>
+                          <span className="text-[7.5px] font-bold text-neutral-400 block mb-0.5">Seat Tier Designation</span>
+                          <span className="text-indigo-600 font-black truncate block">{trackedTicket.ticketType}</span>
+                        </div>
+                        <div>
+                          <span className="text-[7.5px] font-bold text-neutral-400 block mb-0.5">Scheduled Timing</span>
+                          <span className="text-neutral-800 font-black block">{trackedTicket.date} @ {trackedTicket.time}</span>
+                        </div>
+                        <div>
+                          <span className="text-[7.5px] font-bold text-neutral-400 block mb-0.5 text-indigo-600">Checkout Receipt ID</span>
+                          <span className="text-neutral-800 font-black block font-mono">{trackedTicket.id}</span>
+                        </div>
+                      </div>
+
+                      {/* Payment Verification Info */}
+                      <div className="bg-neutral-50 p-3 rounded-2xl border border-neutral-100 flex items-center justify-between">
+                        <div className="space-y-0.5 text-[8px] font-medium text-neutral-400 uppercase">
+                          <span className="block font-bold text-neutral-500">MOMO Payment Status</span>
+                          {trackedTicket.price === '0' || !trackedTicket.price || trackedTicket.paymentConfirmed ? (
+                            <span className="text-emerald-600 font-black flex items-center gap-1 mt-0.5">
+                              <Check size={9} /> Verified & Authorized
+                            </span>
+                          ) : (
+                            <span className="text-amber-700 font-black flex items-center gap-1 mt-0.5">
+                              ⚠️ Pending Manual Verification
+                            </span>
+                          )}
+                        </div>
+                        <div className="font-mono text-right text-[8px]">
+                          <span className="text-neutral-400 block font-bold">TRANSACTION ID</span>
+                          <span className="text-neutral-700 font-black block truncate max-w-[120px]">
+                            {trackedTicket.paymentTxId || 'FREE COMPLIMENTARY'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Live Generated visual ticket presentation QR Code */}
+                      <div className="flex flex-col items-center border-t border-dashed border-neutral-200 mt-4 pt-4 text-center">
+                        <QRCodeCanvas
+                          value={trackedTicket.id}
+                          size={100}
+                          level="H"
+                          fgColor="#000000"
+                          bgColor="#ffffff"
+                          className="w-24 h-24 border border-neutral-50 p-1.5 bg-white rounded-lg shadow-sm"
+                        />
+                        <span className="text-[7px] font-mono mt-2 tracking-widest text-neutral-400">{trackedTicket.id}</span>
+                      </div>
+                    </div>
+
+                    {/* Download/Print Action elements */}
+                    <div className="flex gap-2 w-full max-w-md">
                       <button
                         onClick={() => {
-                          setSelectedExploreEvent(evt);
-                          setExploreTierId(evt.tiers?.[0]?.id || "1");
-                          setExploreContactName("");
-                          setExploreContactEmail("");
-                          setExploreContactPhone("");
-                          setExploreRegisteredTicket(null);
-                          setExploreRegisterModal(true);
+                          window.print();
                         }}
-                        className="w-full h-12 bg-neutral-900 hover:bg-indigo-600 hover:scale-[1.02] active:scale-[0.98] text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md mt-6 flex items-center justify-center gap-2"
+                        className="flex-1 h-12 bg-neutral-900 hover:bg-black text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 border"
                       >
-                        <Tickets size={14} />
-                        Get Tickets
+                        <Printer size={13} />
+                        Print Pass
                       </button>
                     </div>
-                  );
-                })}
+                  </motion.div>
+                )}
               </div>
+            ) : (
+              <>
+                {/* Event Cards Grid */}
+                {filteredExploreEvents.length === 0 ? (
+                  <div className="bg-white border border-neutral-100 rounded-[2.5rem] p-12 text-center max-w-md mx-auto my-12 shadow-sm space-y-4">
+                    <div className="w-16 h-16 bg-neutral-50 text-neutral-400 rounded-full flex items-center justify-center mx-auto">
+                      <Globe size={32} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black uppercase text-neutral-800 tracking-wider">No Events Listed</h3>
+                      <p className="text-[11px] text-neutral-400 font-medium leading-relaxed uppercase mt-1">
+                        Check back soon or publish an event from the design studio to see it appear in this catalog.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredExploreEvents.map((evt) => {
+                      const hasTiers = evt.tiers && evt.tiers.length > 0;
+                      const startingPrice = hasTiers
+                        ? Math.min(...evt.tiers!.map((t) => parseFloat(String(t.price).replace(/,/g, "")) || 0))
+                        : parseFloat(String(evt.price).replace(/,/g, "")) || 0;
+                      const startingPriceLabel = startingPrice === 0 ? "FREE" : `UGX ${startingPrice.toLocaleString()}`;
+
+                      return (
+                        <div
+                          key={evt.id}
+                          className="bg-white border border-neutral-100 hover:border-indigo-400 hover:shadow-xl rounded-[2.2rem] p-6 lg:p-8 flex flex-col justify-between transition-all group duration-300"
+                        >
+                          <div className="space-y-4 text-left">
+                            {/* Visual Event Flyer / Banner */}
+                            <div className="w-full h-44 rounded-2xl overflow-hidden relative bg-neutral-100 border border-neutral-100/50">
+                              <img
+                                src={evt.design?.featuredImageUrl || `https://picsum.photos/seed/${evt.id}/400/225`}
+                                alt={evt.eventTitle}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500"
+                              />
+                              <div className="absolute top-3 left-3">
+                                <span className="text-[8px] font-mono bg-white/90 text-neutral-900 backdrop-blur-sm px-2.5 py-1 rounded-full font-black uppercase tracking-wider shadow-sm">
+                                  ID: {evt.id}
+                                </span>
+                              </div>
+                              <div className="absolute top-3 right-3">
+                                <span className="text-[8px] font-black uppercase text-white bg-indigo-600/90 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-sm">
+                                  {startingPrice === 0 ? "FREE" : startingPriceLabel}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Title */}
+                            <h3 className="text-lg font-black uppercase italic tracking-tight text-neutral-900 group-hover:text-indigo-600 transition-colors line-clamp-2">
+                              {evt.eventTitle}
+                            </h3>
+
+                            {/* Date & Location */}
+                            <div className="space-y-2 text-[10px] text-neutral-500 font-medium">
+                              <div className="flex items-center gap-2">
+                                <Calendar size={13} className="text-neutral-400 shrink-0" />
+                                <span>{evt.date} @ {evt.time}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <MapPin size={13} className="text-neutral-400 shrink-0" />
+                                <span>{evt.venue}</span>
+                              </div>
+                            </div>
+
+                            {/* Description */}
+                            {evt.description ? (
+                              <p className="text-[11px] text-neutral-400 font-medium leading-relaxed line-clamp-3 border-t border-neutral-50 pt-3">
+                                {evt.description}
+                              </p>
+                            ) : (
+                              <p className="text-[11px] text-neutral-300 italic font-medium leading-relaxed border-t border-neutral-50 pt-3">
+                                No special instructions compiled for this event.
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Buy Ticket Button */}
+                          <button
+                            onClick={() => {
+                              setSelectedExploreEvent(evt);
+                              setExploreTierId(evt.tiers?.[0]?.id || "1");
+                              setExploreContactName("");
+                              setExploreContactEmail("");
+                              setExploreContactPhone("");
+                              setExploreRegisteredTicket(null);
+                              setExploreRegisterModal(true);
+                            }}
+                            className="w-full h-12 bg-neutral-900 hover:bg-indigo-600 hover:scale-[1.02] active:scale-[0.98] text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md mt-6 flex items-center justify-center gap-2"
+                          >
+                            <Tickets size={14} />
+                            Get Tickets
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             )}
 
             {/* Booking / Checkout Modal overlay */}
@@ -1448,6 +1879,16 @@ export default function TicketingTool() {
 
                   {!exploreRegisteredTicket ? (
                     <div className="space-y-6">
+                      {/* Event Banner/Flyer Header */}
+                      <div className="w-full h-36 rounded-2xl overflow-hidden relative bg-neutral-100 border border-neutral-100">
+                        <img
+                          src={selectedExploreEvent.design?.featuredImageUrl || `https://picsum.photos/seed/${selectedExploreEvent.id}/400/225`}
+                          alt={selectedExploreEvent.eventTitle}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+
                       <div className="space-y-2 border-b border-neutral-50 pb-4">
                         <span className="text-[8px] font-black uppercase tracking-[0.25em] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
                           Order Ticket
@@ -1704,6 +2145,42 @@ export default function TicketingTool() {
                 Go back to login desk
               </button>
             </div>
+          ) : !isVip ? (
+            <div className="bg-white border border-neutral-100 rounded-[2.5rem] p-12 text-center max-w-md mx-auto my-12 shadow-sm space-y-6">
+              <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto shadow-sm">
+                <Sparkles size={32} className="animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black uppercase text-neutral-800 tracking-wider">VIP Access Required</h3>
+                <p className="text-[11px] text-neutral-400 font-medium leading-relaxed mt-2 uppercase">
+                  To publish booking pages, configure custom price tiers, and design premium entry templates, you must hold an active VIP membership.
+                </p>
+                <div className="mt-4 p-4 bg-amber-50/50 rounded-2xl border border-amber-100/30 text-left">
+                  <p className="text-[10px] text-amber-900 font-bold uppercase tracking-wider mb-1">💡 How to unlock VIP:</p>
+                  <p className="text-[9px] text-amber-800/80 font-medium leading-relaxed uppercase">
+                    You can easily toggle your VIP status from the <strong className="text-neutral-950 font-black">Admin Dashboard</strong> or inspect your current Tier in <strong className="text-neutral-950 font-black">Profile Settings</strong>!
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => {
+                    window.location.hash = "settings";
+                  }}
+                  className="flex-1 h-12 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                >
+                  Profile & Settings
+                </button>
+                <button 
+                  onClick={() => {
+                    window.location.hash = "admin";
+                  }}
+                  className="flex-1 h-12 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md shadow-amber-600/10"
+                >
+                  Admin Desk
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="space-y-6 text-left">
               {/* Full Width Step Guided Banner */}
@@ -1814,19 +2291,32 @@ export default function TicketingTool() {
                           />
                         </div>
                         {!isFree && (
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-neutral-400 uppercase">Mobile Money Recipient Number (For Ticket Collection)</label>
-                            <input
-                              type="text"
-                              required
-                              placeholder="Ex: +256 772 123 456"
-                              value={organizerPhone}
-                              onChange={(e) => setOrganizerPhone(e.target.value)}
-                              className="w-full bg-neutral-50 border-none rounded-xl h-12 px-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
-                            />
-                            <p className="text-[8px] font-medium text-neutral-400 uppercase tracking-tight leading-relaxed">
-                              Attendees will transfer the entrance fee directly to this MoMo number and submit their checkout with their Transaction ID.
-                            </p>
+                          <div className="space-y-3">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-neutral-400 uppercase">Mobile Money Recipient Number (For Ticket Collection)</label>
+                              <input
+                                type="text"
+                                required
+                                placeholder="Ex: +256 772 123 456"
+                                value={organizerPhone}
+                                onChange={(e) => setOrganizerPhone(e.target.value)}
+                                className="w-full bg-neutral-50 border-none rounded-xl h-12 px-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-neutral-400 uppercase">Registered Mobile Money Account Name (For Correction Check)</label>
+                              <input
+                                type="text"
+                                required
+                                placeholder="Ex: JOEL MUKASA"
+                                value={organizerPhoneName}
+                                onChange={(e) => setOrganizerPhoneName(e.target.value)}
+                                className="w-full bg-neutral-50 border-none rounded-xl h-12 px-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
+                              />
+                              <p className="text-[8px] font-medium text-neutral-400 uppercase tracking-tight leading-relaxed">
+                                Attendees will transfer the entrance fee directly to this MoMo number and confirm that the registered recipient name matches this exact name before completing the payment transfer.
+                              </p>
+                            </div>
                           </div>
                         )}
                       </motion.div>
@@ -1961,116 +2451,12 @@ export default function TicketingTool() {
                             ))}
                           </div>
                         </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <input
-                            type="text"
-                            placeholder="Default Tier"
-                            value={ticketType}
-                            onChange={(e) => setTicketType(e.target.value)}
-                            className="w-full bg-neutral-50 border-none rounded-xl h-12 px-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
-                          />
-                          <div className="relative">
-                            <DollarSign
-                              className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300"
-                              size={16}
-                            />
-                            <input
-                              type="text"
-                              placeholder="Default Price"
-                              disabled={isFree}
-                              value={isFree ? "0" : price}
-                              onChange={(e) => setPrice(e.target.value)}
-                              className="w-full bg-neutral-50 border-none rounded-xl h-12 pl-12 pr-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
-                            />
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={() => setBulkMode(!bulkMode)}
-                          className={`w-full h-10 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all ${bulkMode ? "bg-indigo-600 text-white shadow-md" : "bg-neutral-100 text-neutral-400"}`}
-                        >
-                          <ListChecks size={14} />
-                          {bulkMode ? "Direct Input" : "Enable Bulk Mode"}
-                        </button>
-
-                        {bulkMode ? (
-                          <div className="space-y-2">
-                            <label className="text-[9px] font-bold uppercase text-neutral-400">
-                              Customer Names
-                            </label>
-                            <textarea
-                              value={bulkNames}
-                              onChange={(e) => setBulkNames(e.target.value)}
-                              placeholder="John Doe&#10;Jane Smith"
-                              className="w-full bg-neutral-50 border-none rounded-xl p-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all h-32"
-                            />
-                          </div>
-                        ) : (
-                          <div className="relative">
-                            <User
-                              className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300"
-                              size={16}
-                            />
-                            <input
-                              type="text"
-                              placeholder="Attendant Name"
-                              value={customerName}
-                              onChange={(e) => setCustomerName(e.target.value)}
-                              className="w-full bg-neutral-50 border-none rounded-xl h-12 pl-12 pr-4 text-xs font-bold focus:ring-2 ring-indigo-500/20 transition-all"
-                            />
-                          </div>
-                        )}
                       </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
               </div>
-
-              <button
-                onClick={bulkMode ? handleBulkGenerate : handleDeploy}
-                disabled={loading}
-                className={`w-full h-20 rounded-2xl flex flex-col items-center justify-center gap-1 text-[12px] font-black uppercase tracking-[0.2em] transition-all relative overflow-hidden group
-                  ${success ? "bg-emerald-500 text-white shadow-emerald-200 shadow-xl" : "bg-neutral-900 text-white hover:bg-black shadow-xl"}`}
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                <div className="flex items-center gap-3 relative z-10">
-                  {loading ? (
-                    <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                  ) : success ? (
-                    <Check size={20} />
-                  ) : bulkMode ? (
-                    <ListChecks size={20} />
-                  ) : (
-                    <Sparkles size={20} className="text-indigo-400" />
-                  )}
-                  <span>
-                    {loading
-                      ? bulkMode
-                        ? `Generating...`
-                        : "Rendering..."
-                      : success
-                        ? "Asset Deployed"
-                        : bulkMode
-                          ? "Run Bulk Protocol"
-                          : "Deploy Digital Token"}
-                  </span>
-                </div>
-                {!loading && !success && (
-                  <span className="text-[8px] opacity-40 font-bold tracking-widest relative z-10">
-                    Sign & Verify Asset
-                  </span>
-                )}
-                {loading && bulkMode && (
-                  <div className="w-48 h-1 bg-white/20 rounded-full overflow-hidden mt-1 relative z-10">
-                    <motion.div
-                      className="h-full bg-white"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${loadingProgress}%` }}
-                    />
-                  </div>
-                )}
-              </button>
+            </div>
 
               {/* Validation Feedback & Magic Pre-filler */}
               {validationError && (
@@ -2821,7 +3207,6 @@ export default function TicketingTool() {
             </div>
           </div>
         </div>
-        </div>
           )
         )}
 
@@ -2922,6 +3307,7 @@ export default function TicketingTool() {
                                 ]);
                                 setEventDescription(evt.description || "");
                                 setOrganizerPhone(evt.organizerPhone || "0772000000");
+                                setOrganizerPhoneName(evt.organizerPhoneName || "JOEL MUKASA");
                                 if (evt.design) {
                                   setColor(evt.design.color);
                                   setLayout(evt.design.layout);
@@ -3081,6 +3467,9 @@ export default function TicketingTool() {
                         </div>
                       </div>
 
+                      {/* Revenue growth and analysis visualizer */}
+                      <RevenueGrowthChart currentEvent={currentEvent} eventTickets={eventTickets} />
+
                       {/* Attendee search & list container */}
                       <div className="bg-white border border-neutral-100 rounded-[2.5rem] p-6 lg:p-8 space-y-6 shadow-sm">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -3091,13 +3480,23 @@ export default function TicketingTool() {
                             <p className="text-[9px] font-medium text-neutral-400 uppercase">Search by name, email or secure signature ID</p>
                           </div>
                           
-                          <input 
-                            type="text"
-                            placeholder="Search attendee..."
-                            value={attendeeSearchQuery}
-                            onChange={(e) => setAttendeeSearchQuery(e.target.value)}
-                            className="bg-neutral-50 rounded-xl h-10 px-4 text-xs font-bold w-full sm:w-64 border-none focus:ring-2 ring-indigo-500/20 transition-all"
-                          />
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+                            <input 
+                              type="text"
+                              placeholder="Search attendee..."
+                              value={attendeeSearchQuery}
+                              onChange={(e) => setAttendeeSearchQuery(e.target.value)}
+                              className="bg-neutral-50 rounded-xl h-10 px-4 text-xs font-bold w-full sm:w-56 border-none focus:ring-2 ring-indigo-500/20 transition-all"
+                            />
+                            <button
+                              onClick={() => handlePrintRosterPDF(currentEvent, filteredTickets)}
+                              className="h-10 px-4 bg-neutral-900 hover:bg-black text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 shrink-0 shadow-sm hover:scale-[1.01] active:scale-[0.99]"
+                              title="Generate printable PDF layout of this filtered attendee list"
+                            >
+                              <Printer size={13} />
+                              Print Roster
+                            </button>
+                          </div>
                         </div>
 
                         {filteredTickets.length === 0 ? (

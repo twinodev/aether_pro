@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (docSnap.exists()) {
             const data = docSnap.data() as UserProfile;
             setProfile(data);
-            const isAdminUser = firebaseUser.email === ADMIN_EMAIL || data.isAdmin;
+            const isAdminUser = firebaseUser.email === ADMIN_EMAIL;
             const now = new Date();
             const expiry = data.vipExpiry ? new Date(data.vipExpiry) : null;
             const hasActiveVip = data.isVip && (!expiry || now < expiry);

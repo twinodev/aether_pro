@@ -31,19 +31,19 @@ type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' 
 
 const navItems: { id: View; label: string; icon: any; adminOnly?: boolean }[] = [
   { id: 'home', label: 'Home', icon: LayoutGrid },
-  { id: 'momo-intelligence', label: 'MoMo', icon: Smartphone },
   { id: 'duka-sync', label: 'DukaSync', icon: Store },
-  { id: 'receipt-lab', label: 'POS', icon: Receipt },
-  { id: 'luku-predictor', label: 'Energy', icon: Zap },
-  { id: 'admin', label: 'Admin', icon: Shield, adminOnly: true },
-  { id: 'ocr-tool', label: 'OCR', icon: FileText },
   { id: 'ticketing', label: 'Events', icon: Tickets },
+  { id: 'receipt-lab', label: 'POS', icon: Receipt },
+  { id: 'momo-intelligence', label: 'MoMo', icon: Smartphone },
+  { id: 'luku-predictor', label: 'Energy', icon: Zap },
+  { id: 'ocr-tool', label: 'OCR', icon: FileText },
+  { id: 'scanner', label: 'Scanner', icon: Camera },
   { id: 'qr-builder', label: 'QR', icon: QrCode },
   { id: 'barcode-builder', label: 'Barcode', icon: Barcode },
-  { id: 'scanner', label: 'Scanner', icon: Camera },
   { id: 'converter', label: 'Units', icon: Repeat },
-  { id: 'vault', label: 'Vault', icon: Shield },
   { id: 'phone-sorter', label: 'Intel', icon: Users },
+  { id: 'vault', label: 'Vault', icon: Shield },
+  { id: 'admin', label: 'Admin', icon: Shield, adminOnly: true },
 ];
 
 const getInitialView = (): View => {
@@ -70,12 +70,8 @@ export default function App() {
   const [showLogin, setShowLogin] = useState(false);
   const { user, login, logout, loading, isVip, isAdmin } = useAuth();
 
-  // Notification and Hash Sync setup
+  // Notification on-demand and Hash Sync setup
   React.useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-
     const handleHashChange = () => {
       const hash = window.location.hash.replace(/^#\/?/, '');
       const baseView = hash.split('?')[0];
@@ -142,8 +138,8 @@ export default function App() {
   }
 
   const renderView = () => {
-    // If user is not logged in and is not on home or event-register or explicitly showing login, show login overlay
-    if (!user && (currentView !== 'home' && currentView !== 'event-register' || showLogin)) {
+    // If user is not logged in and is not on home, event-register, ticketing, or explicitly showing login, show login overlay
+    if (!user && (currentView !== 'home' && currentView !== 'event-register' && currentView !== 'ticketing' || showLogin)) {
       return <LoginOverlay onClose={() => setShowLogin(false)} />;
     }
 

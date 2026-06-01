@@ -114,9 +114,19 @@ export default function Home({ onSelectTool }: { onSelectTool: (id: string) => v
       title: 'Events & Tickets',
       description: 'Browse local events, issue entry passes, buy access tokens, and view live registration notification feeds.',
       icon: <Tickets size={24} />,
-      color: 'bg-indigo-600',
+      color: 'bg-cyan-600',
       featured: true,
       category: 'ops',
+      vip: false
+    },
+    {
+      id: 'receipt-lab',
+      title: 'POS (Receipt Lab)',
+      description: 'Professional point-of-sale receipt designer, printer formatting, and sales checkout builder.',
+      icon: <Receipt size={24} />,
+      color: 'bg-indigo-600',
+      featured: true,
+      category: 'finance',
       vip: false
     },
     {
@@ -127,15 +137,6 @@ export default function Home({ onSelectTool }: { onSelectTool: (id: string) => v
       color: 'bg-emerald-500',
       featured: true,
       category: 'finance',
-      vip: true
-    },
-    {
-      id: 'phone-sorter',
-      title: 'Numbers Intelligence',
-      description: 'Clean & sort contact lists for marketing.',
-      icon: <Users size={24} />,
-      color: 'bg-emerald-600',
-      category: 'data',
       vip: true
     },
     {
@@ -157,6 +158,14 @@ export default function Home({ onSelectTool }: { onSelectTool: (id: string) => v
       category: 'ops'
     },
     {
+      id: 'scanner',
+      title: 'Universal Scanner',
+      description: 'Read stock levels and payment codes.',
+      icon: <Camera size={24} />,
+      color: 'bg-cyan-600',
+      category: 'ops'
+    },
+    {
       id: 'qr-builder',
       title: 'Brand QR Protocol',
       description: 'Custom codes for payments/menus.',
@@ -173,20 +182,21 @@ export default function Home({ onSelectTool }: { onSelectTool: (id: string) => v
       category: 'ops'
     },
     {
-      id: 'scanner',
-      title: 'Universal Scanner',
-      description: 'Read stock levels and payment codes.',
-      icon: <Camera size={24} />,
-      color: 'bg-cyan-600',
-      category: 'ops'
-    },
-    {
       id: 'converter',
       title: 'Trade Converter',
       description: 'Standard weights & metrics protocol.',
       icon: <Repeat size={24} />,
       color: 'bg-orange-500',
       category: 'ops'
+    },
+    {
+      id: 'phone-sorter',
+      title: 'Numbers Intelligence',
+      description: 'Clean & sort contact lists for marketing.',
+      icon: <Users size={24} />,
+      color: 'bg-emerald-600',
+      category: 'data',
+      vip: true
     },
     {
       id: 'vault',

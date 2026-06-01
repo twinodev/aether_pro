@@ -41,6 +41,7 @@ export interface Ticket {
   design: TicketDesign;
   createdAt: any;
   organizerPhone?: string;
+  organizerPhoneName?: string;
   paymentConfirmed?: boolean;
   paymentTxId?: string;
   paymentMethod?: 'momo' | 'airtel';
@@ -60,6 +61,7 @@ export interface Event {
   design: TicketDesign;
   createdAt: any;
   organizerPhone?: string;
+  organizerPhoneName?: string;
 }
 
 export interface TicketTemplate {

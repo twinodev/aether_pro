@@ -47,10 +47,54 @@ export default function QRBuilder() {
     }
   };
 
+  const getFormattedExportCanvas = (originalCanvas: HTMLCanvasElement): HTMLCanvasElement => {
+    const exportCanvas = document.createElement('canvas');
+    const ctx = exportCanvas.getContext('2d');
+    if (!ctx) return originalCanvas;
+
+    const originalWidth = originalCanvas.width;
+    const originalHeight = originalCanvas.height;
+
+    // Substantial padding around the QR code
+    const padding = Math.max(24, Math.round(originalWidth * 0.08)); 
+    const exportWidth = originalWidth + padding * 2;
+    const exportHeight = originalHeight + padding * 2;
+
+    exportCanvas.width = exportWidth;
+    exportCanvas.height = exportHeight;
+
+    // Outer transparent layer
+    ctx.clearRect(0, 0, exportWidth, exportHeight);
+
+    // Rounded corner radius for the white background
+    const radius = Math.max(16, Math.round(exportWidth * 0.06));
+
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    if (typeof (ctx as any).roundRect === 'function') {
+      (ctx as any).roundRect(0, 0, exportWidth, exportHeight, radius);
+    } else {
+      ctx.moveTo(radius, 0);
+      ctx.arcTo(exportWidth, 0, exportWidth, exportHeight, radius);
+      ctx.arcTo(exportWidth, exportHeight, 0, exportHeight, radius);
+      ctx.arcTo(0, exportHeight, 0, 0, radius);
+      ctx.arcTo(0, 0, exportWidth, 0, radius);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Center original QR code canvas on the custom white card
+    ctx.drawImage(originalCanvas, padding, padding);
+
+    return exportCanvas;
+  };
+
   const downloadQR = () => {
     const canvas = document.getElementById('qr-code-canvas') as HTMLCanvasElement;
     if (!canvas) return;
-    const url = canvas.toDataURL('image/png');
+    
+    const exportCanvas = getFormattedExportCanvas(canvas);
+    const url = exportCanvas.toDataURL('image/png');
     const link = document.createElement('a');
     link.download = `qr-code-${Date.now()}.png`;
     link.href = url;
@@ -61,7 +105,9 @@ export default function QRBuilder() {
     try {
       const canvas = document.getElementById('qr-code-canvas') as HTMLCanvasElement;
       if (!canvas) return;
-      canvas.toBlob(async (blob) => {
+      
+      const exportCanvas = getFormattedExportCanvas(canvas);
+      exportCanvas.toBlob(async (blob) => {
         if (!blob) return;
         await navigator.clipboard.write([
           new ClipboardItem({ 'image/png': blob })
@@ -368,7 +414,13 @@ END:VCARD`;
           {/* Preview */}
           <section className="flex flex-col items-center justify-center">
             <div className={`p-8 border-dashed border-2 flex flex-col items-center gap-8 w-full max-w-sm aspect-square justify-center relative group rounded-[2rem] transition-colors ${isDarkMode ? 'bg-neutral-900/50 border-neutral-800' : 'bg-neutral-100/50 border-neutral-200'}`}>
-              <div className="bg-white p-6 rounded-2xl shadow-2xl transition-transform group-hover:scale-105 duration-300">
+              <motion.div 
+                key={`${qrValue}-${fgColor}-${bgColor}-${logo ? 'has-logo' : 'no-logo'}-${logoSize}`}
+                initial={{ scale: 0.95, opacity: 0.7 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: "spring", stiffness: 350, damping: 22 }}
+                className="bg-white p-6 rounded-2xl shadow-2xl transition-transform group-hover:scale-105 duration-300"
+              >
                 <QRCodeCanvas
                   id="qr-code-canvas"
                   value={qrValue}
@@ -384,7 +436,7 @@ END:VCARD`;
                     excavate: true,
                   } : undefined}
                 />
-              </div>
+              </motion.div>
 
               <div className="flex gap-3 w-full max-w-xs">
                 <button 
