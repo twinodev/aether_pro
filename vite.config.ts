@@ -40,6 +40,7 @@ export default defineConfig(({ mode }) => {
           ]
         },
         workbox: {
+          navigateFallbackDenylist: [/^\/api/],
           cleanupOutdatedCaches: true,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
@@ -72,24 +73,6 @@ export default defineConfig(({ mode }) => {
               handler: 'StaleWhileRevalidate',
               options: {
                 cacheName: 'duka-sync-app-shell-cache',
-                cacheableResponse: {
-                  statuses: [0, 200]
-                }
-              }
-            },
-            {
-              // Network-First strategy with background sync queue helper for backend API transactions
-              urlPattern: ({ url }) => url.pathname.includes('/api/'),
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'duka-sync-api-endpoints-cache',
-                networkTimeoutSeconds: 8,
-                backgroundSync: {
-                  name: 'sync-inventory-queue',
-                  options: {
-                    maxRetentionTime: 24 * 60 // Keep retrying for 24 hours
-                  }
-                },
                 cacheableResponse: {
                   statuses: [0, 200]
                 }
