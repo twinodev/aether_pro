@@ -80,6 +80,7 @@ export interface TicketTemplate {
 
 // Local Storage Helper Utilities
 export const getLocalList = <T>(key: string): T[] => {
+  if (typeof window === 'undefined') return [];
   try {
     const data = window.localStorage.getItem(key);
     return data ? JSON.parse(data) : [];
@@ -90,6 +91,7 @@ export const getLocalList = <T>(key: string): T[] => {
 };
 
 export const saveLocalList = <T>(key: string, list: T[]) => {
+  if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(key, JSON.stringify(list));
   } catch (err) {

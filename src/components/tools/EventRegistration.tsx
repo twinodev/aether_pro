@@ -661,7 +661,7 @@ export default function EventRegistration() {
                         <span>Save PNG</span>
                       </button>
                       <button 
-                        onClick={emailTicketToCustomer}
+                        onClick={() => emailTicketToCustomer()}
                         disabled={emailSending || !generatedTicket.paymentConfirmed}
                         className="h-14 rounded-xl border border-neutral-100 hover:border-indigo-500 text-neutral-900 bg-neutral-50 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm disabled:opacity-40 disabled:hover:border-neutral-100"
                       >

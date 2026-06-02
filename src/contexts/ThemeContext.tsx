@@ -11,17 +11,32 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    const saved = localStorage.getItem('aether-theme');
-    if (saved === 'dark' || saved === 'light') return saved;
-    return 'light';
-  });
+  const [theme, setThemeState] = useState<Theme>('light');
 
   useEffect(() => {
-    const root = window.document.documentElement;
-    root.classList.remove('light', 'dark');
-    root.classList.add(theme);
-    localStorage.setItem('aether-theme', theme);
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('aether-theme');
+        if (saved === 'dark' || saved === 'light') {
+          setThemeState(saved);
+        }
+      } catch (e) {
+        console.warn('Failed to load theme from localStorage:', e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const root = window.document.documentElement;
+        root.classList.remove('light', 'dark');
+        root.classList.add(theme);
+        localStorage.setItem('aether-theme', theme);
+      } catch (e) {
+        console.warn('Failed to save theme to localStorage:', e);
+      }
+    }
   }, [theme]);
 
   const toggleTheme = () => {

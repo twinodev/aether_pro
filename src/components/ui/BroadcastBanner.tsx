@@ -6,10 +6,18 @@ import { subscribeToBroadcasts, Broadcast } from '../../services/broadcastServic
 export default function BroadcastBanner() {
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [dismissedIds, setDismissedIds] = useState<string[]>(() => {
-    const saved = localStorage.getItem('dismissedBroadcasts');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('dismissedBroadcasts');
+        if (saved) setDismissedIds(JSON.parse(saved));
+      } catch (e) {
+        console.warn('Failed to load dismissed broadcasts from localStorage:', e);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     let lastBroadcastId: string | null = null;

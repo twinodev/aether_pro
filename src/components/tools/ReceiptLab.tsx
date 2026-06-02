@@ -35,22 +35,28 @@ export default function ReceiptLab() {
   const [currency, setCurrency] = useState('UGX');
   const [vatMode, setVatMode] = useState<'included' | 'excluded'>('excluded');
   
-  const [businessInfo, setBusinessInfo] = useState<BusinessInfo>(() => {
-    const saved = localStorage.getItem('receipt_lab_business');
-    return saved ? JSON.parse(saved) : { name: '', address: '', phone: '', tin: '' };
-  });
+  const [businessInfo, setBusinessInfo] = useState<BusinessInfo>({ name: '', address: '', phone: '', tin: '' });
 
-  const [receiptCounter, setReceiptCounter] = useState<number>(() => {
-    const saved = localStorage.getItem('receipt_lab_counter');
-    return saved ? parseInt(saved) : 1000;
-  });
+  const [receiptCounter, setReceiptCounter] = useState<number>(1000);
 
   const [currentReceiptNumber, setCurrentReceiptNumber] = useState<string>('');
 
-  const [catalog, setCatalog] = useState<CatalogItem[]>(() => {
-    const saved = localStorage.getItem('receipt_lab_catalog');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedBusiness = localStorage.getItem('receipt_lab_business');
+        if (savedBusiness) setBusinessInfo(JSON.parse(savedBusiness));
+        const savedCounter = localStorage.getItem('receipt_lab_counter');
+        if (savedCounter) setReceiptCounter(parseInt(savedCounter));
+        const savedCatalog = localStorage.getItem('receipt_lab_catalog');
+        if (savedCatalog) setCatalog(JSON.parse(savedCatalog));
+      } catch (e) {
+        console.warn('Failed to load ReceiptLab settings from localStorage:', e);
+      }
+    }
+  }, []);
 
   const [showBusinessSetup, setShowBusinessSetup] = useState(false);
   const [showCatalog, setShowCatalog] = useState(false);

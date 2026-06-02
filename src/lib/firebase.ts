@@ -6,11 +6,12 @@ import firebaseConfig from '../../firebase-applet-config.json';
 const app = initializeApp(firebaseConfig);
 
 // Enable fully robust local IndexedDB persistent caching for offline-first reads and queued writes
-export const db = initializeFirestore(app, {
+const isBrowser = typeof window !== 'undefined';
+export const db = initializeFirestore(app, isBrowser ? {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
   })
-}, firebaseConfig.firestoreDatabaseId);
+} : {}, firebaseConfig.firestoreDatabaseId);
 
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
@@ -63,13 +64,15 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 }
 
 // Validate connection on boot
-(async () => {
-  const { doc, getDocFromServer } = await import('firebase/firestore');
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration.");
+if (isBrowser) {
+  (async () => {
+    const { doc, getDocFromServer } = await import('firebase/firestore');
+    try {
+      await getDocFromServer(doc(db, 'test', 'connection'));
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('the client is offline')) {
+        console.error("Please check your Firebase configuration.");
+      }
     }
-  }
-})();
+  })();
+}

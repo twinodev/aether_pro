@@ -336,7 +336,7 @@ export default function RevenueGrowthChart({ currentEvent, eventTickets }: Reven
                     height={36} 
                     iconType="circle" 
                     iconSize={8}
-                    wrapperStyle={{ fontSize: '9px', textTransform: 'uppercase', fontWeight: 900, tracking: '0.1em' }}
+                    wrapperStyle={{ fontSize: '9px', textTransform: 'uppercase', fontWeight: 900, letterSpacing: '0.1em' }}
                   />
                   {eventTiers.map((tier, idx) => (
                     <Area

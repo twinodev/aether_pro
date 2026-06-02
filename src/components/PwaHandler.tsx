@@ -1,7 +1,32 @@
 import React, { useEffect, useState } from 'react';
-import { useRegisterSW } from 'virtual:pwa-register/react';
 import { Download, RefreshCw, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+function useRegisterSW(options?: { onRegistered?: (r: any) => void; onRegisterError?: (e: any) => void }) {
+  const [offlineReady, setOfflineReady] = useState(false);
+  const [needRefresh, setNeedRefresh] = useState(false);
+  const updateServiceWorker = (reload?: boolean) => {
+    if (reload && typeof window !== 'undefined') {
+      window.location.reload();
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && options?.onRegistered) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        if (registrations.length > 0 && options.onRegistered) {
+          options.onRegistered(registrations[0]);
+        }
+      });
+    }
+  }, [options]);
+
+  return {
+    offlineReady: [offlineReady, setOfflineReady] as const,
+    needRefresh: [needRefresh, setNeedRefresh] as const,
+    updateServiceWorker,
+  };
+}
 
 export default function PwaHandler() {
   const {

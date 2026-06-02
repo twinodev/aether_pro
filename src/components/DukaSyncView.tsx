@@ -100,7 +100,7 @@ export default function DukaSyncView() {
   const [activeLocation, setActiveLocation] = useState<Location | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
-  const [view, setView] = useState<'overview' | 'inventory' | 'sales' | 'pos' | 'settings' | 'reports' | 'labels' | 'certificate'>('overview');
+  const [view, setView] = useState<'overview' | 'inventory' | 'sales' | 'pos' | 'settings' | 'reports' | 'labels' | 'certificate' | 'staff'>('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showEditProduct, setShowEditProduct] = useState(false);
@@ -135,10 +135,29 @@ export default function DukaSyncView() {
     currency: 'KES'
   });
 
-  const [currency, setCurrency] = useState(() => localStorage.getItem('dukaCurrency') || 'KES');
+  const [currency, setCurrency] = useState('KES');
 
   useEffect(() => {
-    localStorage.setItem('dukaCurrency', currency);
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('dukaCurrency');
+        if (saved) {
+          setCurrency(saved);
+        }
+      } catch (e) {
+        console.warn('Failed to load currency setting from localStorage:', e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('dukaCurrency', currency);
+      } catch (e) {
+        console.warn('Failed to save currency setting to localStorage:', e);
+      }
+    }
   }, [currency]);
   const [lastScannedForLabel, setLastScannedForLabel] = useState<Product | null>(null);
   const [labelItems, setLabelItems] = useState<LabelItem[]>([]);
@@ -1308,7 +1327,7 @@ export default function DukaSyncView() {
                                 </div>
                               )}
                               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-neutral-50 rounded-xl flex items-center justify-center text-neutral-400 sm:mb-3 shrink-0">
-                                <Package size={18} sm:size={20} />
+                                <Package className="w-[18px] h-[18px] sm:w-[20px] sm:h-[20px]" />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-[10px] sm:text-xs font-black uppercase tracking-tight text-neutral-900 line-clamp-1">{product.name}</p>

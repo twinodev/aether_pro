@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Head from 'next/head';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, LayoutGrid, Settings, HelpCircle, Menu, X, QrCode, Barcode, Camera, Sparkles, Repeat, Shield, Users, FileText, Mic, LogOut, FileImage, Globe, Tickets, Home as HomeIcon, Search as SearchIcon, Terminal, Brackets, Zap, Receipt, Store, Printer } from 'lucide-react';
 import Home from './components/Home.tsx';
@@ -28,6 +29,121 @@ import { User as UserIcon, Smartphone } from 'lucide-react';
 const PREMIUM_VIEWS: string[] = ['luku-predictor', 'receipt-lab', 'momo-intelligence', 'duka-sync'];
 
 type View = 'home' | 'qr-builder' | 'barcode-builder' | 'scanner' | 'converter' | 'vault' | 'phone-sorter' | 'ticketing' | 'ocr-tool' | 'luku-predictor' | 'receipt-lab' | 'momo-intelligence' | 'settings' | 'admin' | 'duka-sync' | 'event-register';
+
+const ViewSEO: Record<View, { title: string; description: string; keywords: string; ogTitle: string; ogDescription: string }> = {
+  home: {
+    title: "Aether Pro | Elite Retail Utilities & Shop Management Protocol",
+    description: "Distributed privacy-first platform featuring DukaSync inventory protocol, Receipt Lab POS, Events & Mobile pass registration, MoMo wallet calculations, Luku meter forecasters, OCR scanners, and more.",
+    keywords: "Aether Pro, retail utilities, Duka sync, POS designer, digital bills, OCR scanner, ticketing, commerce suite",
+    ogTitle: "Aether Pro | Premium Commerce & Retail Protocol",
+    ogDescription: "Distributed suite of elegant, privacy-first retail tools for inventory, printing layouts, and secure token issuance."
+  },
+  'duka-sync': {
+    title: "Duka Sync | Real-time Shop Stock & Multi-terminal Inventory Protocol",
+    description: "Synchronize inventory seamlessly. Manage global ledger entries, local currencies, live supplier checklists, active checkouts, and store performance reports.",
+    keywords: "DukaSync, stock tracking, shop sync, POS inventory database, merchant reports, store protocol",
+    ogTitle: "Duka Sync | Distributed Stock & Shop Protocol",
+    ogDescription: "Distributed inventory protocol for high-performance retail shops. Zero lag, zero clutter, real-time sync with advanced local analytics."
+  },
+  'ticketing': {
+    title: "Verifiable Ticket Token Protocol | Aether Pro Events",
+    description: "Create local events, issue cryptographic entry cards, distribute access keys, track registrations, and stream live participant checklists.",
+    keywords: "qr pass, security checks, events tickets tool, gate control planner, ticket tokens, live checkin feed",
+    ogTitle: "Aether Events | Verifiable Ticket Issuance Engine",
+    ogDescription: "Generate secure QR passes, map attendee seat registers, and manage event admissions smoothly."
+  },
+  'receipt-lab': {
+    title: "Receipt Lab POS Printer | Commercial Formatting & Digital Billing",
+    description: "Point-of-sale receipt formatting panel. Customize paper layouts, specify VAT parameters, format print guides, and update catalog items.",
+    keywords: "receipt lab, pos receipts, tax item overrides, billing list, product invoice formatting, printer tools",
+    ogTitle: "Receipt Lab POS | Custom Print Formatting Assistant",
+    ogDescription: "Fast professional receipt design and printer layout manager. Customize store details, line items, and print formats."
+  },
+  'momo-intelligence': {
+    title: "MoMo Pay Fee Intelligence | Mobile Money Multi-Network charges Calculator",
+    description: "Check transaction cost metrics for mobile wallets. Determine cellular network transfer rates, charges, and withdrawal fees for MTN & Airtel instantly.",
+    keywords: "momo cost check, mobile transfer charges, cash out fees MTN, transaction rate check",
+    ogTitle: "MoMo Fee Intelligence | Transaction Rate Calculator",
+    ogDescription: "Calculate accurate sending and withdrawal fees across top mobile transaction networks."
+  },
+  'luku-predictor': {
+    title: "Luku Energy Cost Estimator | Prepaid Power Foresight Panel",
+    description: "Keep tracking prepaid power consumption, schedule next token replenishment sequences, and avoid unexpected blackout outages.",
+    keywords: "luku tokens, electricity predictor, prepaid energy, cost estimator, budget utility planner",
+    ogTitle: "Luku Energy Cost Predictor | Smart Utility Forecasts",
+    ogDescription: "Avoid blackout surprises. Forecast utility depletion schedules based on current token loads."
+  },
+  'ocr-tool': {
+    title: "Printed Document OCR Scanner | Local Image Text Extractor",
+    description: "Fast local image text converter. Scan supplier papers, hand-written tables, printed bills, and catalogs directly into database-ready lists.",
+    keywords: "smart ocr reader, raw image text, instant character scan, document digitizer, local privacy",
+    ogTitle: "Smart OCR | Local Document Digitization Scanner",
+    ogDescription: "High-speed local image text extractor. Convert receipts, stock notes, and tables into copyable texts."
+  },
+  'scanner': {
+    title: "Universal Stock Scanner | In-Browser Barcode & QR Code Reader",
+    description: "Scan packaging barcodes, item identifiers, and transaction QR keys directly using standard camera systems in your web browser.",
+    keywords: "web camera scanner, scan qr code, barcode scanner inline, item tracker, camera scanner interface",
+    ogTitle: "Universal Stock Scanner | Instant Code Scanner",
+    ogDescription: "Turn any browser into a rapid industrial scanner. Instant detection for inventory barcode and payment key tracking."
+  },
+  'qr-builder': {
+    title: "Brand QR Code Builder | Vector QR Code Customizer Portal",
+    description: "Establish custom high-contrast QR codes with custom eye elements, patterns, brand-matching palettes, and secure logo embeds.",
+    keywords: "custom stylized qr, branding qr generator, vector barcode builder, dynamic qr code designer",
+    ogTitle: "Brand QR Protocol | Stylized Code Designer",
+    ogDescription: "Craft high-trust vector QR codes with customized patterns, brand-matching palettes, and secure embeds."
+  },
+  'barcode-builder': {
+    title: "Inventory Labels Builder | Standard Barcode Generator Assistant",
+    description: "Assemble modern retail EAN-13, EAN-8, UPC, and Code 128 barcodes. Prepare print-ready labels for shop shelves and box tagging.",
+    keywords: "barcode designer, product codes, labels prints format, shelf catalog tags, tag prints",
+    ogTitle: "Barcode Labels Protocol | Professional Retail Barcodes",
+    ogDescription: "Generate standard retail barcode shapes ready for catalog printing and industrial shelf tagging."
+  },
+  'converter': {
+    title: "Trade Metrics Converter | Commercial Weights & Units Calculator",
+    description: "Instant unit scaling for international commerce. Convert metric sizes, shipping weights, and standard packaging scales accurately.",
+    keywords: "metrics weights converter, volumetric scale, trade checks, merchant scales, unit conversion charts",
+    ogTitle: "Trade Metrics Converter | Fast Units Normalizer",
+    ogDescription: "Accurate industrial metric and unit scale conversions for shop inventory and product lists."
+  },
+  'phone-sorter': {
+    title: "Numbers Intelligence | Campaign Contact List Sorter",
+    description: "Sort, split, de-duplicate, format, and validate customer mobile number lists to ensure flawless SMS notifications.",
+    keywords: "marketing list cleaner, phone contact analyzer, customer database deduplicate, notification dispatch check",
+    ogTitle: "Numbers Sorter Intelligence | Bulk List Optimizer",
+    ogDescription: "Format and sort massive customer contact phone sheets for maximum marketing performance."
+  },
+  'vault': {
+    title: "Security Secret Vault | Offline Strong Key Generator",
+    description: "Hardened local key generator and credential vault. Standard encryption key metrics to shield enterprise access.",
+    keywords: "local password locker, crypt key maker, credential armor, offline vault codes, master vault settings",
+    ogTitle: "Security Vault | Offline High-Entropy Locker",
+    ogDescription: "Privacy-first offline credential generator. Safeguard merchant passwords and system entry passwords secure."
+  },
+  'settings': {
+    title: "Profile Preferences | Aether Pro Shop Panel Settings",
+    description: "Control defaults currency parameters, configure printer layouts, trigger local backup exports, and switch dark theme modes.",
+    keywords: "custom backup setting, aether defaults options, secure config backup, theme toggle",
+    ogTitle: "Aether Pro Preferences | System Settings",
+    ogDescription: "Control POS preferences, active print scales, database backups, and personalized themes."
+  },
+  'admin': {
+    title: "Operations Admin Dashboard | System Management Center",
+    description: "Audit action events, manage active network broadcasts, monitor datastore telemetry, and inspect administrator privileges.",
+    keywords: "status checks, broadcast banners, event auditor, supervisor dashboard",
+    ogTitle: "Operations Admin Control Center | Aether Pro Core Panel",
+    ogDescription: "Privileged operational control, real-time activity audits, and dynamic announcement dispatch."
+  },
+  'event-register': {
+    title: "Event Pass Registry | Custom Ticket Issuance Page",
+    description: "Claim your pass token for check-in. Pre-register passenger slots, view seat charts, and save beautiful code images.",
+    keywords: "attendee ticket checkin, pass ticket save, custom invitation details, register admission",
+    ogTitle: "Event Pass Check-in Register | Elite Pass Issuance",
+    ogDescription: "Claim event check-in credentials. Instant downloadable security passes for rapid door verification."
+  }
+};
 
 const navItems: { id: View; label: string; icon: any; adminOnly?: boolean }[] = [
   { id: 'home', label: 'Home', icon: LayoutGrid },
@@ -211,8 +327,27 @@ export default function App() {
     return matchesSearch && matchesAdmin;
   });
 
+  const currentSEO = ViewSEO[currentView] || ViewSEO.home;
+
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#fafafa] dark:bg-neutral-950">
+    <>
+      <Head>
+        <title key="title">{currentSEO.title}</title>
+        <meta name="description" content={currentSEO.description} key="description" />
+        <meta name="keywords" content={currentSEO.keywords} key="keywords" />
+        
+        {/* Open Graph / Facebook */}
+        <meta property="og:title" content={currentSEO.ogTitle} key="og:title" />
+        <meta property="og:description" content={currentSEO.ogDescription} key="og:description" />
+        <meta property="og:url" content={`https://ais-pre-puqew7udmfr5wk5fq7wy2v-436861249101.europe-west1.run.app/#/${currentView === 'home' ? '' : currentView}`} key="og:url" />
+        <meta property="og:image" content="https://ais-pre-puqew7udmfr5wk5fq7wy2v-436861249101.europe-west1.run.app/logo.svg" key="og:image" />
+        
+        {/* Twitter */}
+        <meta name="twitter:title" content={currentSEO.title} key="twitter:title" />
+        <meta name="twitter:description" content={currentSEO.description} key="twitter:description" />
+        <meta name="twitter:image" content="https://ais-pre-puqew7udmfr5wk5fq7wy2v-436861249101.europe-west1.run.app/logo.svg" key="twitter:image" />
+      </Head>
+      <div className="min-h-screen flex flex-col md:flex-row bg-[#fafafa] dark:bg-neutral-950">
       {/* Desktop Sidebar */}
       <aside className={`hidden md:flex flex-col ${isSidebarExpanded ? 'w-72' : 'w-24'} bg-white dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 h-screen sticky top-0 z-50 transition-all duration-300 ease-in-out`}>
         <div className={`p-8 flex items-center ${isSidebarExpanded ? 'justify-between' : 'justify-center'} gap-4`}>
@@ -592,6 +727,7 @@ export default function App() {
       </AnimatePresence>
       <PwaHandler />
     </div>
+    </>
   );
 }
 

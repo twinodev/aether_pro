@@ -205,7 +205,7 @@ export default function LoginOverlay({ onClose }: { onClose?: () => void }) {
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300" size={16} />
                   <input 
                     type="password" 
-                    required={authMode !== 'forgot'}
+                    required
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     className="w-full h-14 pl-12 pr-6 bg-neutral-50 dark:bg-neutral-800 border-none rounded-2xl text-sm font-medium focus:ring-2 ring-neutral-900 dark:ring-white transition-all dark:text-white"
